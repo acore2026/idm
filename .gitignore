@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 生成的文件和密钥（不应该提交到git）
+certs/*.pem
+profiles/*.json
+logs/*.log
+*.pem
+private_key.pem
+public_key.pem
+
+# 其他
+cert/
+cert_ref.txt
+generate_keys.py
