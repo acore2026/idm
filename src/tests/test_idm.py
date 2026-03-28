@@ -214,7 +214,7 @@ class TestIDMService(unittest.TestCase):
         
     def test_process_valid_application(self):
         """测试处理有效申请."""
-        timestamp = int(datetime.now().timestamp())
+        timestamp = str(int(datetime.now().timestamp()))
         message = f"test_owner:TestAgent:{timestamp}"
         signature = self._sign_message(message)
         
@@ -241,7 +241,7 @@ class TestIDMService(unittest.TestCase):
             name="TestAgent",
             public_key=self.public_key_pem,
             description="Test agent",
-            timestamp=int(datetime.now().timestamp()),
+            timestamp=str(int(datetime.now().timestamp())),
             signature="invalid_signature",
             metadata=Metadata(region="CN", os="Linux", version="1.0.0")
         )
@@ -286,7 +286,7 @@ class MockACNAgent:
         Returns:
             申请请求字典
         """
-        timestamp = int(datetime.now().timestamp())
+        timestamp = str(int(datetime.now().timestamp()))
         
         # 构造签名消息
         message = f"{owner}:{name}:{timestamp}"
@@ -372,7 +372,7 @@ def run_mock_test():
         response = service.process_identity_application(request)
         
         print("\nResponse Data:")
-        print(json.dumps(response.dict(), indent=2, ensure_ascii=False))
+        print(json.dumps(response.model_dump(), indent=2, ensure_ascii=False))
         
         print("\n" + "=" * 60)
         print("Test PASSED!")
@@ -543,7 +543,7 @@ def run_deletion_test():
     try:
         deletion_response = service.delete_agent_identity(deletion_request)
         print(f"\nDeletion Response:")
-        print(json.dumps(deletion_response.dict(), indent=2, ensure_ascii=False))
+        print(json.dumps(deletion_response.model_dump(), indent=2, ensure_ascii=False))
         print("\n" + "=" * 60)
         print("Deletion Test PASSED!")
         print("=" * 60)
@@ -598,7 +598,7 @@ def run_vc_verification_test():
     try:
         vc_response = service.verify_vcs(vc_request)
         print(f"\nVC Verification Response:")
-        print(json.dumps(vc_response.dict(), indent=2, ensure_ascii=False))
+        print(json.dumps(vc_response.model_dump(), indent=2, ensure_ascii=False))
         print("\n" + "=" * 60)
         print("VC Verification Test PASSED!")
         print("=" * 60)

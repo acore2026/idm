@@ -24,5 +24,5 @@ idm-acn/
 ├── logs/                       # 日志目录
 ├── certs/                      # 证书目录
 ├── requirements.txt            # 依赖包
-├── start.sh                    # Linux启动脚本
+├── start_idm.sh                # Linux启动脚本
 └── start.bat                   # Windows启动脚本

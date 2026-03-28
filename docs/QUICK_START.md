@@ -31,11 +31,13 @@ python --version   # Windows
 cd /path/to/idm-acn
 
 # 2. 给予启动脚本执行权限
-chmod +x start.sh
+chmod +x start_idm.sh
 
 # 3. 运行启动脚本
-./start.sh
+./start_idm.sh
 ```
+
+如果你只想直接启动服务，请运行 `./start_idm.sh`，它会固定监听 `127.0.0.1:9020`。
 
 #### Windows
 

@@ -1,8 +1,9 @@
 """IDM FastAPI应用入口.
 
-提供HTTP API服务，监听9020端口。
+提供HTTP API服务，默认监听127.0.0.1:9020。
 """
 
+import argparse
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -91,7 +92,7 @@ async def apply_identity(request: IdentityApplicationRequest) -> IdentityApplica
     LoggerManager.log_message_received(
         endpoint="/idm/v1/identity-applications",
         method="POST",
-        body=request.dict()
+        body=request.model_dump()
     )
     
     try:
@@ -101,7 +102,7 @@ async def apply_identity(request: IdentityApplicationRequest) -> IdentityApplica
         # 记录发送的响应
         LoggerManager.log_message_sent(
             endpoint="/idm/v1/identity-applications",
-            response=response.dict()
+            response=response.model_dump()
         )
         
         return response
@@ -151,7 +152,7 @@ async def get_profile(agent_id: str):
     profile = ProfileManager.load_profile(agent_id)
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
-    return profile.dict()
+    return profile.model_dump()
 
 
 @app.post(
@@ -181,7 +182,7 @@ async def delete_agent(request: AgentDeletionRequest) -> AgentDeletionResponse:
     LoggerManager.log_message_received(
         endpoint="/idm/v1/agent-deletions",
         method="POST",
-        body=request.dict()
+        body=request.model_dump()
     )
     
     try:
@@ -191,7 +192,7 @@ async def delete_agent(request: AgentDeletionRequest) -> AgentDeletionResponse:
         # 记录发送的响应
         LoggerManager.log_message_sent(
             endpoint="/idm/v1/agent-deletions",
-            response=response.dict()
+            response=response.model_dump()
         )
         
         return response
@@ -229,7 +230,7 @@ async def verify_vcs(request: VCVerificationRequest) -> VCVerificationResponse:
     LoggerManager.log_message_received(
         endpoint="/idm/v1/vc-verifications",
         method="POST",
-        body=request.dict()
+        body=request.model_dump()
     )
     
     try:
@@ -239,7 +240,7 @@ async def verify_vcs(request: VCVerificationRequest) -> VCVerificationResponse:
         # 记录发送的响应
         LoggerManager.log_message_sent(
             endpoint="/idm/v1/vc-verifications",
-            response=response.dict()
+            response=response.model_dump()
         )
         
         return response
@@ -252,16 +253,25 @@ async def verify_vcs(request: VCVerificationRequest) -> VCVerificationResponse:
         raise HTTPException(status_code=500, detail="Internal processing error")
 
 
-def main():
-    """主入口函数."""
+def main(host: str | None = None, port: int | None = None):
+    """主入口函数.
+
+    Args:
+        host: 可选监听地址，未提供时使用配置默认值
+        port: 可选监听端口，未提供时使用配置默认值
+    """
     uvicorn.run(
         "src.idm.main:app",
-        host=config.IDM_HOST,
-        port=config.IDM_PORT,
+        host=host or config.IDM_HOST,
+        port=port or config.IDM_PORT,
         reload=False,
         log_level="info"
     )
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Run the IDM service")
+    parser.add_argument("--host", default=None, help="Bind address, defaults to config value")
+    parser.add_argument("--port", type=int, default=None, help="Bind port, defaults to config value")
+    args = parser.parse_args()
+    main(host=args.host, port=args.port)

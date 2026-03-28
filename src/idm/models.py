@@ -23,7 +23,7 @@ class IdentityApplicationRequest(BaseModel):
         name: Agent名称
         public_key: Agent公钥
         description: Agent描述
-        timestamp: 时间戳
+        timestamp: 时间戳字符串
         signature: 签名
         signature_encoding: 签名编码格式
         metadata: 元数据
@@ -32,7 +32,7 @@ class IdentityApplicationRequest(BaseModel):
     name: str = Field(..., description="Agent名称")
     public_key: str = Field(..., description="Agent公钥(PEM格式)")
     description: str = Field(..., description="Agent描述")
-    timestamp: int = Field(..., description="申请时间戳")
+    timestamp: str = Field(..., description="申请时间戳")
     signature: str = Field(..., description="签名值")
     signature_encoding: str = Field(default="base64", description="签名编码格式")
     metadata: Metadata = Field(..., description="元数据")
@@ -44,7 +44,7 @@ class IdentityApplicationRequest(BaseModel):
                 "name": "AliceAgent",
                 "public_key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...",
                 "description": "AgentModel-X, SN123456",
-                "timestamp": 1711185600,
+                "timestamp": "1711185600",
                 "signature": "xxxxxxx",
                 "signature_encoding": "base64",
                 "metadata": {

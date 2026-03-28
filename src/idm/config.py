@@ -25,10 +25,11 @@ class Config:
     """
     
     # 项目根目录
-    BASE_DIR: Path = Path(__file__).parent.parent.parent.parent
+    # `config.py` lives in `src/idm/`, so the project root is three levels up.
+    BASE_DIR: Path = Path(__file__).resolve().parents[2]
     
     # 服务配置
-    IDM_HOST: str = os.getenv("IDM_HOST", "0.0.0.0")
+    IDM_HOST: str = os.getenv("IDM_HOST", "127.0.0.1")
     IDM_PORT: int = int(os.getenv("IDM_PORT", "9020"))
     
     # IDM DID标识（固定值）

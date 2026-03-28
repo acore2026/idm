@@ -8,7 +8,10 @@ from typing import Optional, List, Tuple
 from datetime import datetime
 from pathlib import Path
 
-import requests
+try:
+    import requests
+except ImportError:  # pragma: no cover - optional in minimal test envs
+    requests = None
 
 from .config import config
 from .logger import get_logger, LoggerManager
@@ -87,7 +90,7 @@ class IDMService:
         # Step 2: 验证签名
         logger.info("Step 2: Verifying signature...")
         # 构造签名字符串（按照规范）
-        message_to_verify = f"{request.owner}:{request.name}:{request.timestamp}"
+        message_to_verify = f"{request.timestamp}"
         
         signature_valid = self.crypto.verify_signature(
             public_key=agent_public_key,
@@ -240,7 +243,7 @@ class IDMService:
         LoggerManager.log_message_received(
             endpoint="/idm/v1/agent-deletions",
             method="POST",
-            body=request.dict()
+            body=request.model_dump()
         )
         
         # 记录状态转换
@@ -336,13 +339,17 @@ class IDMService:
             是否转发成功
         """
         try:
+            if requests is None:
+                logger.warning("requests is not installed; skipping AgentGW forwarding")
+                return False
+
             agent_gw_url = "http://localhost:9001/acn-agent/v1/agent-deletions"
             logger.info(f"Forwarding deletion request to AgentGW: {agent_gw_url}")
             
             # 发送POST请求给AgentGW
             response = requests.post(
                 agent_gw_url,
-                json=request.dict(),
+                json=request.model_dump(),
                 timeout=5
             )
             
@@ -384,7 +391,7 @@ class IDMService:
         LoggerManager.log_message_received(
             endpoint="/idm/v1/vc-verifications",
             method="POST",
-            body=request.dict()
+            body=request.model_dump()
         )
         
         # 记录状态转换
@@ -490,7 +497,7 @@ class IDMService:
                 # 检查是否已存在
                 existing = [v for v in profile.vc_list if v.get('id') == vc.id]
                 if not existing:
-                    profile.vc_list.append(vc.dict())
+                    profile.vc_list.append(vc.model_dump())
                     logger.info(f"Added VC to profile: {vc.id}")
         
         # 保存更新后的profile

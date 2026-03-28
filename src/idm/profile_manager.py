@@ -40,7 +40,7 @@ class ProfileManager:
         
         # 保存到JSON文件
         with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(profile.dict(), f, indent=2, ensure_ascii=False)
+            json.dump(profile.model_dump(), f, indent=2, ensure_ascii=False)
             
         logger.info(f"Profile saved: {file_path}")
         logger.info(f"  - Agent ID: {profile.agent_id}")
