@@ -3,6 +3,7 @@
 提供可验证凭证(VC)的生成服务。
 """
 
+import random
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional
@@ -46,8 +47,8 @@ class VCGenerator:
         valid_from = now
         valid_until = now + timedelta(days=365 * valid_years)
         
-        # 生成VC ID
-        vc_id = f"CMCC/credentials/{uuid.uuid4().hex[:8].upper()}"
+        # 生成VC ID（4位随机数字）
+        vc_id = f"CMCC/credentials/{random.randint(0, 9999):04d}"
         
         # 构造VC内容（不包含签名）
         vc_data = {
@@ -60,7 +61,7 @@ class VCGenerator:
             "claims": {
                 "agent_name": agent_name,
                 "agent_id": agent_id,
-                "agent_attribute": "运营商颁发，Agent与主UE的绑定关系，用于对外出示，审计确权",
+                "agent_attribute": "6G业务开通",
                 "master_id": master_id,
                 "self_id": self_id
             }
