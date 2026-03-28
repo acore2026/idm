@@ -89,8 +89,8 @@ class IDMService:
             
         # Step 2: 验证签名
         logger.info("Step 2: Verifying signature...")
-        # 构造签名字符串（按照规范）
-        message_to_verify = f"{request.timestamp}"
+        # 客户端只对时间戳进行签名
+        message_to_verify = request.timestamp
         
         signature_valid = self.crypto.verify_signature(
             public_key=agent_public_key,
@@ -399,7 +399,7 @@ class IDMService:
             entity="VCVerification",
             from_state="INIT",
             to_state="RECEIVED",
-            details=f"Agent: {request.agent_id}, VC count: {len(request.vcs)}"
+            details=f"Agent: {request.agent_id}, VC count: {len(request.vc_list)}"
         )
         
         # Step 1: 检查Agent是否存在
@@ -419,7 +419,7 @@ class IDMService:
         # Step 2: 批量校验VC
         logger.info("Step 2: Validating VCs...")
         valid_vc_ids, results = VCValidator.validate_vcs(
-            request.vcs,
+            request.vc_list,
             request.agent_id
         )
         
@@ -436,13 +436,13 @@ class IDMService:
             entity="VCVerification",
             from_state="AGENT_VERIFIED",
             to_state="VC_VALIDATED",
-            details=f"Valid: {len(valid_vc_ids)}/{len(request.vcs)}"
+            details=f"Valid: {len(valid_vc_ids)}/{len(request.vc_list)}"
         )
         
         # Step 3: 更新Agent Profile（添加有效VC）
         if valid_vc_ids:
             logger.info("Step 3: Updating agent profile with valid VCs...")
-            self._update_profile_with_vcs(profile, request.vcs, valid_vc_ids)
+            self._update_profile_with_vcs(profile, request.vc_list, valid_vc_ids)
         
         LoggerManager.log_state_change(
             entity="VCVerification",

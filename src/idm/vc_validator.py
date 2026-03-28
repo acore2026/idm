@@ -3,9 +3,16 @@
 提供可验证凭证(VC)的验证服务，包括签名验证、有效期检查等。
 """
 
+import base64
 import json
 from datetime import datetime
 from typing import List, Tuple, Optional
+from pathlib import Path
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.exceptions import InvalidSignature
 
 from .config import config
 from .crypto import crypto_manager
@@ -28,6 +35,13 @@ class VCValidator:
     
     REQUIRED_FIELDS = ["context", "id", "type", "issuer", "valid_from", "valid_until", "claims", "proof"]
     REQUIRED_PROOF_FIELDS = ["creator", "signature_value"]
+    
+    # 颁发者DID到证书文件的映射
+    ISSUER_CERT_MAP = {
+        "did:huaweiissuer": "Huawei_cert.crt",
+        "did:robotfactoryissuer": "Robot_Factory_cert.crt",
+        "did:udid:NewTypeOperator": "CMCC_cert.crt",  # CMCC证书
+    }
     
     @classmethod
     def validate_vc(cls, vc: VC, check_issuer_exists: bool = True) -> VCValidationResult:
@@ -162,15 +176,62 @@ class VCValidator:
         """检查颁发者DID是否存在."""
         errors = []
         
-        # 检查是否是IDM颁发的（当前只支持IDM作为颁发者）
-        if vc.issuer != config.IDM_DID:
-            # 检查是否是已知的Agent Profile
-            from .profile_manager import ProfileManager
-            profile = ProfileManager.load_profile(vc.issuer)
-            if profile is None:
-                errors.append(f"Issuer does not exist: {vc.issuer}")
+        # 检查是否是IDM颁发的
+        if vc.issuer == config.IDM_DID:
+            return errors
+        
+        # 检查是否是已知的外部颁发者（在证书映射中）
+        for issuer_prefix in cls.ISSUER_CERT_MAP.keys():
+            if vc.issuer.startswith(issuer_prefix):
+                # 外部颁发者，不检查profile，由签名验证保证
+                return errors
+        
+        # 对于其他颁发者，检查是否是已知的Agent Profile
+        from .profile_manager import ProfileManager
+        profile = ProfileManager.load_profile(vc.issuer)
+        if profile is None:
+            errors.append(f"Issuer does not exist: {vc.issuer}")
         
         return errors
+    
+    @classmethod
+    def _load_issuer_public_key(cls, issuer_did: str) -> Optional[object]:
+        """从证书文件加载颁发者的公钥.
+        
+        Args:
+            issuer_did: 颁发者DID
+            
+        Returns:
+            公钥对象或None
+        """
+        try:
+            # 根据issuer DID查找对应的证书文件
+            cert_filename = None
+            for issuer_prefix, filename in cls.ISSUER_CERT_MAP.items():
+                if issuer_did.startswith(issuer_prefix):
+                    cert_filename = filename
+                    break
+            
+            if not cert_filename:
+                logger.warning(f"No certificate mapping found for issuer: {issuer_did}")
+                return None
+            
+            cert_path = config.CERTS_DIR / cert_filename
+            if not cert_path.exists():
+                logger.warning(f"Certificate file not found: {cert_path}")
+                return None
+            
+            # 加载证书
+            with open(cert_path, "rb") as f:
+                cert = x509.load_pem_x509_certificate(f.read())
+            
+            public_key = cert.public_key()
+            logger.info(f"Loaded public key for issuer {issuer_did} from {cert_filename}")
+            return public_key
+            
+        except Exception as e:
+            logger.error(f"Failed to load public key for issuer {issuer_did}: {e}")
+            return None
     
     @classmethod
     def _verify_signature(cls, vc: VC) -> List[str]:
@@ -178,6 +239,11 @@ class VCValidator:
         errors = []
         
         try:
+            # CMCC颁发的VC跳过签名验证（通过ID前缀判断）
+            if vc.id.startswith("CMCC/credentials/"):
+                logger.info(f"Skipping signature verification for CMCC VC: {vc.id}")
+                return errors
+            
             # 构造待验证的数据（排除proof部分）
             vc_to_verify = {
                 "context": vc.context,
@@ -189,16 +255,40 @@ class VCValidator:
                 "claims": vc.claims
             }
             
-            # 序列化为JSON字符串
-            message = json.dumps(vc_to_verify, sort_keys=True, ensure_ascii=False)
+            # 序列化为JSON字符串（与签名端保持一致）
+            message = json.dumps(vc_to_verify, sort_keys=True, separators=(",", ":"))
+            
+            # 获取签名
+            signature_b64 = vc.proof.signature_value
+            signature_bytes = base64.b64decode(signature_b64)
             
             # 获取签名者的公钥
-            # 简化处理：假设签名者是IDM，使用IDM的公钥验证
             if vc.proof.creator.startswith(config.IDM_DID):
                 # 使用IDM公钥验证
-                logger.info(f"Signature verification skipped for IDM-issued VC: {vc.id}")
+                logger.info(f"Using IDM public key for VC: {vc.id}")
+                public_key = crypto_manager._public_key
             else:
-                logger.info(f"Signature verification for external VC: {vc.id}")
+                # 从证书加载外部颁发者的公钥
+                logger.info(f"Loading public key for external issuer: {vc.issuer}")
+                public_key = cls._load_issuer_public_key(vc.issuer)
+                if public_key is None:
+                    errors.append(f"Could not load public key for issuer: {vc.issuer}")
+                    return errors
+            
+            # 验证签名
+            try:
+                public_key.verify(
+                    signature_bytes,
+                    message.encode(),
+                    ec.ECDSA(hashes.SHA256())
+                )
+                logger.info(f"Signature verified successfully for VC: {vc.id}")
+            except InvalidSignature:
+                logger.error(f"Signature verification failed for VC: {vc.id}")
+                errors.append("Invalid signature")
+            except Exception as e:
+                logger.error(f"Signature verification error for VC {vc.id}: {e}")
+                errors.append(f"Signature verification error: {e}")
             
         except Exception as e:
             errors.append(f"Signature verification error: {e}")

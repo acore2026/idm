@@ -4,7 +4,7 @@
 """
 
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices
 from datetime import datetime
 
 
@@ -295,16 +295,20 @@ class VCVerificationRequest(BaseModel):
     
     Attributes:
         agent_id: Agent DID
-        vcs: 待校验的VC列表
+        vc_list: 待校验的VC列表
     """
     agent_id: str = Field(..., description="Agent DID")
-    vcs: List[VC] = Field(..., description="待校验的VC列表")
+    vc_list: List[VC] = Field(
+        ...,
+        validation_alias=AliasChoices("vc_list", "vcs"),
+        description="待校验的VC列表"
+    )
     
     class Config:
         json_schema_extra = {
             "example": {
                 "agent_id": "did:acn:agent:987654321",
-                "vcs": [
+                "vc_list": [
                     {
                         "context": ["3gpp-ts-33.xxx-v20.0.0"],
                         "id": "CMCC/credentials/3732",

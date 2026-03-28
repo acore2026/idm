@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives.asymmetric import ec
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -41,15 +41,14 @@ class TestCrypto(unittest.TestCase):
     def test_sign_and_verify(self):
         """测试签名和验证."""
         # 生成测试密钥对
-        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        private_key = ec.generate_private_key(ec.SECP256R1())
         public_key = private_key.public_key()
         
         # 签名
         message = "test message"
         signature = private_key.sign(
             message.encode(),
-            padding.PKCS1v15(),
-            hashes.SHA256()
+            ec.ECDSA(hashes.SHA256())
         )
         signature_b64 = base64.b64encode(signature).decode()
         
@@ -64,7 +63,7 @@ class TestCrypto(unittest.TestCase):
         
     def test_invalid_signature(self):
         """测试无效签名."""
-        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        private_key = ec.generate_private_key(ec.SECP256R1())
         public_key = private_key.public_key()
         
         result = self.crypto.verify_signature(
@@ -194,7 +193,7 @@ class TestIDMService(unittest.TestCase):
         self.service = IDMService()
         
         # 生成测试密钥对
-        self.private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.private_key = ec.generate_private_key(ec.SECP256R1())
         self.public_key = self.private_key.public_key()
         
         # 导出公钥PEM
@@ -207,8 +206,7 @@ class TestIDMService(unittest.TestCase):
         """辅助方法：签名消息."""
         signature = self.private_key.sign(
             message.encode(),
-            padding.PKCS1v15(),
-            hashes.SHA256()
+            ec.ECDSA(hashes.SHA256())
         )
         return base64.b64encode(signature).decode()
         
@@ -258,7 +256,7 @@ class MockACNAgent:
     def __init__(self):
         """初始化模拟Agent."""
         # 生成密钥对
-        self.private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.private_key = ec.generate_private_key(ec.SECP256R1())
         self.public_key = self.private_key.public_key()
         
         # 导出公钥PEM
@@ -294,8 +292,7 @@ class MockACNAgent:
         # 签名
         signature = self.private_key.sign(
             message.encode(),
-            padding.PKCS1v15(),
-            hashes.SHA256()
+            ec.ECDSA(hashes.SHA256())
         )
         signature_b64 = base64.b64encode(signature).decode()
         
@@ -333,8 +330,7 @@ class MockACNAgent:
         # 签名
         signature = self.private_key.sign(
             message.encode(),
-            padding.PKCS1v15(),
-            hashes.SHA256()
+            ec.ECDSA(hashes.SHA256())
         )
         signature_b64 = base64.b64encode(signature).decode()
         
@@ -470,7 +466,7 @@ class TestVCVerification(unittest.TestCase):
         # 创建校验请求
         request = VCVerificationRequest(
             agent_id=self.agent_id,
-            vcs=[vc]
+            vc_list=[vc]
         )
         
         # 执行校验
@@ -503,7 +499,7 @@ class TestVCVerification(unittest.TestCase):
         # 创建校验请求
         request = VCVerificationRequest(
             agent_id=self.agent_id,
-            vcs=[vc]
+            vc_list=[vc]
         )
         
         # 执行校验
@@ -592,7 +588,7 @@ def run_vc_verification_test():
     
     vc_request = VCVerificationRequest(
         agent_id=agent_id,
-        vcs=[vc]
+        vc_list=[vc]
     )
     
     try:

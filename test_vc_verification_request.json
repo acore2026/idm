@@ -1,0 +1,102 @@
+{
+  "agent_id": "did:acn:N9WiFYJLt9",
+  "priority": 5,
+  "timestamp": "2026-03-28T02:44:43Z",
+  "signature": "MEUCIQCm6dzk9gavm+3bNM+SUr/12ewMRVOiX/v3w47KkEbJlQIgMDfWV5y4uzqCfwbH7RzX2mSJ4mZrzYoxlsu3FQXyEM4=",
+  "signature_encoding": "base64",
+  "vc_list": [
+    {
+      "context": [
+        "3gpp-ts-33.xxx-v20.0.0"
+      ],
+      "id": "CMCC/credentials/ED40D8A8",
+      "type": [
+        "VerifiableCredential",
+        "BindingSIMCredential"
+      ],
+      "issuer": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork",
+      "valid_from": "2026-03-28T02:44:42Z",
+      "valid_until": "2027-03-28T02:44:42Z",
+      "claims": {
+        "agent_name": "AliceAgent",
+        "agent_id": "did:acn:N9WiFYJLt9",
+        "agent_attribute": "运营商颁发，Agent与主UE的绑定关系，用于对外出示，审计确权",
+        "master_id": "type0.rid678.schid0.userid1userid20001@6gc0001@6gc.mnc015.mcc234.3gppnetwork.org",
+        "self_id": "type0.rid678.schid0..mnc015.mcc234.3gppnetwork.org"
+      },
+      "proof": {
+        "creator": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+        "signature_value": "MEUCIELX1UROn9iSr/ntZ3EurDAAOdTxVqJ7+yGGeSQZgJcNAiEAtn/RXemO5GYySQFFk/wZdd/ApNG+zOjDGazOLKpiNZw="
+      }
+    },
+    {
+      "context": [
+        "3gpp-ts-33.xxx-v20.0.0"
+      ],
+      "id": "huawei/credentials/0968",
+      "type": [
+        "VerifiableCredential",
+        "BindingSIMCredential"
+      ],
+      "issuer": "did:huaweiissuer@6gc.mnc015.mcc234.3gppnetwork",
+      "valid_from": "2026-03-28T02:44:43.073104+00:00",
+      "valid_until": "2027-03-28T02:44:43.073104+00:00",
+      "claims": {
+        "agent_name": "AliceAgent",
+        "agent_id": "did:acn:N9WiFYJLt9",
+        "agent_attribute": "可疑人员识别",
+        "authorization_mode": "Mode2"
+      },
+      "proof": {
+        "creator": "did:huaweiissuer@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+        "signature_value": "MEQCIFc7I0S3Ub4GSCAZqXj38tk8vE/zkm17vMIiBqYKEf9hAiA6S+AmsCEidAQ5TBcNNPyoAKpAqKR3Umsuf5UpPo4NNQ=="
+      }
+    },
+    {
+      "context": [
+        "3gpp-ts-33.xxx-v20.0.0"
+      ],
+      "id": "huawei/credentials/9887",
+      "type": [
+        "VerifiableCredential",
+        "BindingSIMCredential"
+      ],
+      "issuer": "did:huaweiissuer@6gc.mnc015.mcc234.3gppnetwork",
+      "valid_from": "2026-03-28T02:44:43.073104+00:00",
+      "valid_until": "2027-03-28T02:44:43.073104+00:00",
+      "claims": {
+        "agent_name": "AliceAgent",
+        "agent_id": "did:acn:N9WiFYJLt9",
+        "agent_attribute": "目标跟踪",
+        "authorization_mode": "Mode2"
+      },
+      "proof": {
+        "creator": "did:huaweiissuer@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+        "signature_value": "MEYCIQDI077x33DiNfiMo8AQPH/aPdqZmRbi0KGkI55MBTXU7gIhALjt2uqbs3e3y08ewLe3pkdGuAvsjBmrQji7QuSW4/bZ"
+      }
+    },
+    {
+      "context": [
+        "3gpp-ts-33.xxx-v20.0.0"
+      ],
+      "id": "robot-factory/credentials/7054",
+      "type": [
+        "VerifiableCredential",
+        "BindingSIMCredential"
+      ],
+      "issuer": "did:robotfactoryissuer@6gc.mnc015.mcc234.3gppnetwork",
+      "valid_from": "2026-03-28T02:44:43.073104+00:00",
+      "valid_until": "2027-03-28T02:44:43.073104+00:00",
+      "claims": {
+        "agent_name": "AliceAgent",
+        "agent_id": "did:acn:N9WiFYJLt9",
+        "agent_attribute": "声光驱离",
+        "authorization_mode": "Mode2"
+      },
+      "proof": {
+        "creator": "did:robotfactoryissuer@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+        "signature_value": "MEYCIQDkAMSZ8CmmL22lPBYz0t7HEtjPlTnNfA3i8ZtDkZTRDQIhAJsHIjO8K9WYYltnDsYB5XJpfyvKWJNOqjRcp16kxwbm"
+      }
+    }
+  ]
+}

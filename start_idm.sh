@@ -1,10 +1,51 @@
 #!/bin/bash
 # Lightweight IDM service wrapper.
-# Starts the API on the local loopback interface at port 9020 by default.
+# Stops any process already listening on the configured port, then starts the API.
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-exec python3 -m uvicorn src.idm.main:app --host 127.0.0.1 --port 9020 "$@"
+HOST="${IDM_HOST:-0.0.0.0}"
+PORT="${IDM_PORT:-9020}"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+
+find_listeners() {
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -ti tcp:"${PORT}" 2>/dev/null || true
+        return
+    fi
+
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltnp "sport = :${PORT}" 2>/dev/null | awk '
+            match($0, /pid=([0-9]+)/, m) { print m[1] }
+        ' | sort -u
+        return
+    fi
+
+    return 0
+}
+
+PIDS="$(find_listeners | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+if [ -n "${PIDS}" ]; then
+    echo "Port ${PORT} is already in use by: ${PIDS}"
+    echo "Stopping existing process(es)..."
+    kill ${PIDS} 2>/dev/null || true
+
+    for _ in 1 2 3 4 5; do
+        sleep 1
+        PIDS="$(find_listeners | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+        if [ -z "${PIDS}" ]; then
+            break
+        fi
+    done
+
+    PIDS="$(find_listeners | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+    if [ -n "${PIDS}" ]; then
+        echo "Some processes are still alive; forcing termination..."
+        kill -9 ${PIDS} 2>/dev/null || true
+    fi
+fi
+
+exec "${PYTHON_BIN}" -m uvicorn src.idm.main:app --host "${HOST}" --port "${PORT}" "$@"

@@ -37,7 +37,7 @@ chmod +x start_idm.sh
 ./start_idm.sh
 ```
 
-如果你只想直接启动服务，请运行 `./start_idm.sh`，它会固定监听 `127.0.0.1:9020`。
+如果你只想直接启动服务，请运行 `./start_idm.sh`，它会默认监听 `127.0.0.1:9020`，并在端口被占用时先结束旧进程再启动。
 
 #### Windows
 
@@ -155,6 +155,8 @@ curl -X POST "http://localhost:9020/idm/v1/identity-applications" \
   }'
 ```
 
+签名串为 `owner:name:timestamp`，使用 ECDSA + SHA-256 签名后再进行 Base64 编码。
+
 ### 使用Python脚本
 
 ```python
@@ -181,6 +183,8 @@ payload = {
 response = requests.post(url, json=payload)
 print(json.dumps(response.json(), indent=2))
 ```
+
+签名串为 `owner:name:timestamp`，使用 ECDSA + SHA-256 签名后再进行 Base64 编码。
 
 ## 常见问题
 

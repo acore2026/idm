@@ -70,7 +70,7 @@ Content-Type: application/json
 message = owner + ":" + name + ":" + timestamp
 ```
 
-签名使用Agent私钥，RSA-PKCS1v15-SHA256算法，结果Base64编码。
+签名使用Agent私钥，ECDSA + SHA-256 算法，结果Base64编码。
 
 **响应**
 

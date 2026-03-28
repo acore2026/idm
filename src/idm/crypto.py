@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey, EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes, PublicKeyTypes
 from cryptography.exceptions import InvalidSignature
 
@@ -48,18 +48,19 @@ class CryptoManager:
                 )
             with open(config.IDM_PUBLIC_KEY_PATH, "rb") as f:
                 self._public_key = serialization.load_pem_public_key(f.read())
-            logger.info("IDM keys loaded successfully")
+            if not isinstance(self._private_key, EllipticCurvePrivateKey) or not isinstance(self._public_key, EllipticCurvePublicKey):
+                logger.warning("Existing IDM keys are not ECDSA keys; regenerating key pair")
+                self._generate_key_pair()
+            else:
+                logger.info("IDM keys loaded successfully")
         else:
             # 生成新密钥对
             logger.info("Generating new IDM key pair...")
             self._generate_key_pair()
             
     def _generate_key_pair(self) -> None:
-        """生成RSA密钥对."""
-        self._private_key = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048
-        )
+        """生成ECDSA密钥对."""
+        self._private_key = ec.generate_private_key(ec.SECP256R1())
         self._public_key = self._private_key.public_key()
         
         # 保存私钥
@@ -98,10 +99,12 @@ class CryptoManager:
             pem_str: PEM格式的公钥字符串
             
         Returns:
-            RSA公钥对象
+            EC公钥对象
         """
         try:
             public_key = serialization.load_pem_public_key(pem_str.encode())
+            if not isinstance(public_key, EllipticCurvePublicKey):
+                raise ValueError("Agent public key must be an ECDSA key")
             return public_key
         except Exception as e:
             logger.error(f"Failed to load agent public key: {e}")
@@ -109,7 +112,7 @@ class CryptoManager:
             
     def verify_signature(
         self, 
-        public_key: RSAPublicKey, 
+        public_key: EllipticCurvePublicKey, 
         message: str, 
         signature: str,
         encoding: str = "base64"
@@ -136,8 +139,7 @@ class CryptoManager:
             public_key.verify(
                 signature_bytes,
                 message.encode(),
-                padding.PKCS1v15(),
-                hashes.SHA256()
+                ec.ECDSA(hashes.SHA256())
             )
             logger.info("Signature verified successfully")
             return True
@@ -161,15 +163,12 @@ class CryptoManager:
             raise RuntimeError("Private key not initialized")
             
         try:
-            # 使用类型断言确保是RSA私钥
-            from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
-            if not isinstance(self._private_key, RSAPrivateKey):
-                raise TypeError("Private key is not an RSA key")
+            if not isinstance(self._private_key, EllipticCurvePrivateKey):
+                raise TypeError("Private key is not an ECDSA key")
                 
             signature = self._private_key.sign(
                 data.encode(),
-                padding.PKCS1v15(),
-                hashes.SHA256()
+                ec.ECDSA(hashes.SHA256())
             )
             return base64.b64encode(signature).decode()
         except Exception as e:

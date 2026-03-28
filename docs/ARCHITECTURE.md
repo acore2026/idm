@@ -278,8 +278,7 @@ message = f"{owner}:{name}:{timestamp}"
 public_key.verify(
     signature_bytes,
     message.encode(),
-    padding.PKCS1v15(),
-    hashes.SHA256()
+    ec.ECDSA(hashes.SHA256())
 )
 ```
 
@@ -312,8 +311,8 @@ signature = IDM_private_key.sign(message)
 
 ### 7.2 签名验证
 
-- 使用RSA-2048 + SHA256
-- PKCS#1 v1.5填充模式
+- 使用ECDSA P-256 + SHA256
+- Base64编码的DER签名值
 - 严格验证签名时间戳有效性
 
 ### 7.3 数据存储

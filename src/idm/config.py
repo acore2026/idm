@@ -29,13 +29,13 @@ class Config:
     BASE_DIR: Path = Path(__file__).resolve().parents[2]
     
     # 服务配置
-    IDM_HOST: str = os.getenv("IDM_HOST", "127.0.0.1")
+    IDM_HOST: str = os.getenv("IDM_HOST", "0.0.0.0")
     IDM_PORT: int = int(os.getenv("IDM_PORT", "9020"))
     
     # IDM DID标识（固定值）
     IDM_DID: str = os.getenv(
         "IDM_DID", 
-        "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork"
+        "did:acn:idm.local@idm.acn.io"
     )
     
     # IDM密钥对路径
