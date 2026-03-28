@@ -9,7 +9,7 @@
       "context": [
         "3gpp-ts-33.xxx-v20.0.0"
       ],
-      "id": "CMCC/credentials/ED40D8A8",
+      "id": "CMCC/credentials/0968",
       "type": [
         "VerifiableCredential",
         "BindingSIMCredential"

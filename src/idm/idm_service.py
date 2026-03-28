@@ -20,6 +20,7 @@ from .models import (
     IdentityApplicationResponse,
     AgentDeletionRequest,
     AgentDeletionResponse,
+    AgentGatewayResponse,
     VCVerificationRequest,
     VCVerificationResponse,
     VC,
@@ -32,7 +33,7 @@ from .vc_generator import VCGenerator
 from .profile_manager import ProfileManager
 from .vc_validator import VCValidator
 
-logger = get_logger(__name__)
+logger = get_logger("idm")
 
 
 class IDMService:
@@ -228,8 +229,8 @@ class IDMService:
         1. 加载Agent Profile获取公钥
         2. 验证签名
         3. 删除Agent Profile
-        4. 转发给AgentGW
-        5. 返回响应
+        4. 转发给AgentGW并收集其响应
+        5. 将AgentGW响应作为本次请求的响应内容返回
         
         Args:
             request: 身份注销请求
@@ -241,7 +242,7 @@ class IDMService:
         logger.info("Processing Agent Deletion")
         logger.info("=" * 50)
         LoggerManager.log_message_received(
-            endpoint="/idm/v1/agent-deletions",
+            endpoint="/acn-agent/v1/agent-deletions",
             method="POST",
             body=request.model_dump()
         )
@@ -263,8 +264,8 @@ class IDMService:
         
         # Step 2: 验证签名
         logger.info("Step 2: Verifying signature...")
-        # 构造签名字符串
-        message_to_verify = f"{request.agent_id}:{request.reason}:{request.timestamp}"
+        # 构造签名字符串（仅对时间戳签名）
+        message_to_verify = request.timestamp
         
         # 从profile获取公钥（这里简化处理，实际应该从verification_relationships中获取）
         # 由于原始请求不包含公钥，我们假设签名已经通过其他方式验证
@@ -299,24 +300,42 @@ class IDMService:
             details="Profile and history deleted"
         )
         
-        # Step 4: 转发给AgentGW
+        # Step 4: 转发给AgentGW并获取其响应
         logger.info("Step 4: Forwarding to AgentGW...")
-        forwarded = self._forward_to_agent_gw(request)
+        agent_gw_response = self._forward_to_agent_gw(request)
         
         LoggerManager.log_state_change(
             entity="AgentDeletion",
             from_state="PROFILE_DELETED",
             to_state="FORWARDED_TO_AGENT_GW",
-            details=f"Forwarded: {forwarded}"
+            details=f"Forwarded: {agent_gw_response.success}, status={agent_gw_response.status_code}"
         )
         
         # Step 5: 构造响应
         logger.info("Step 5: Constructing response...")
+        response_message = "Agent profile and history deleted successfully"
+        if agent_gw_response.body:
+            response_message = (
+                agent_gw_response.body.get("message")
+                or agent_gw_response.body.get("detail")
+                or response_message
+            )
+        elif agent_gw_response.raw_text:
+            response_message = agent_gw_response.raw_text
+        elif agent_gw_response.error:
+            response_message = agent_gw_response.error
+        
+        response_result = "success"
+        if isinstance(agent_gw_response.body, dict):
+            response_result = agent_gw_response.body.get("result") or response_result
+        if not agent_gw_response.success and response_result == "success":
+            response_result = "failed"
         response = AgentDeletionResponse(
-            result="success",
+            result=response_result,
             agent_id=request.agent_id,
-            message="Agent profile and history deleted successfully",
-            forwarded_to_agent_gw=forwarded
+            message=response_message,
+            forwarded_to_agent_gw=agent_gw_response.success,
+            agent_gw_response=agent_gw_response
         )
         
         LoggerManager.log_state_change(
@@ -329,43 +348,121 @@ class IDMService:
         logger.info("Agent deletion processed successfully!")
         return response
     
-    def _forward_to_agent_gw(self, request: AgentDeletionRequest) -> bool:
+    def _forward_to_agent_gw(self, request: AgentDeletionRequest) -> AgentGatewayResponse:
         """转发注销请求给AgentGW.
         
         Args:
             request: 身份注销请求
             
         Returns:
-            是否转发成功
+            AgentGW响应内容
         """
         try:
             if requests is None:
                 logger.warning("requests is not installed; skipping AgentGW forwarding")
-                return False
+                return AgentGatewayResponse(
+                    success=False,
+                    error="requests is not installed; cannot forward to AgentGW"
+                )
 
             agent_gw_url = "http://localhost:9001/acn-agent/v1/agent-deletions"
-            logger.info(f"Forwarding deletion request to AgentGW: {agent_gw_url}")
+            request_body = request.model_dump()
+            
+            # 记录转发消息内容
+            logger.info("=" * 50)
+            logger.info("Forwarding deletion request to AgentGW")
+            logger.info("=" * 50)
+            logger.info(f"Target URL: {agent_gw_url}")
+            logger.info(f"Request body:")
+            logger.info(f"  - agent_id: {request_body.get('agent_id')}")
+            logger.info(f"  - reason: {request_body.get('reason')}")
+            logger.info(f"  - timestamp: {request_body.get('timestamp')}")
+            logger.info(f"  - signature_encoding: {request_body.get('signature_encoding')}")
+            logger.info(f"  - signature (first 50 chars): {request_body.get('signature', '')[:50]}...")
+            logger.info("-" * 50)
             
             # 发送POST请求给AgentGW
             response = requests.post(
                 agent_gw_url,
-                json=request.model_dump(),
+                json=request_body,
                 timeout=5
             )
             
+            response_body = None
+            raw_text = None
+            try:
+                response_body = response.json()
+            except Exception:
+                raw_text = response.text
+            
             if response.status_code == 200:
-                logger.info("Successfully forwarded to AgentGW")
-                return True
+                logger.info("[SUCCESS] Successfully forwarded to AgentGW")
+                logger.info(f"  - Response status: {response.status_code}")
+                if response_body is not None:
+                    logger.info(f"  - Response body: {response_body}")
+                else:
+                    logger.info(f"  - Response text: {raw_text[:200] if raw_text else ''}")
+                logger.info("=" * 50)
+                return AgentGatewayResponse(
+                    success=True,
+                    status_code=response.status_code,
+                    body=response_body,
+                    raw_text=raw_text
+                )
             else:
-                logger.warning(f"AgentGW returned status {response.status_code}")
-                return False
+                logger.warning("[FAILED] AgentGW returned error status")
+                logger.warning(f"  - Status code: {response.status_code}")
+                if response_body is not None:
+                    logger.warning(f"  - Response body: {response_body}")
+                else:
+                    logger.warning(f"  - Response text: {raw_text[:500] if raw_text else ''}")
+                logger.warning("=" * 50)
+                return AgentGatewayResponse(
+                    success=False,
+                    status_code=response.status_code,
+                    body=response_body,
+                    raw_text=raw_text,
+                    error=f"AgentGW returned status code {response.status_code}"
+                )
                 
-        except requests.exceptions.ConnectionError:
-            logger.warning("AgentGW not available (connection refused)")
-            return False
+        except requests.exceptions.ConnectionError as e:
+            logger.error("[FAILED] Cannot connect to AgentGW")
+            logger.error(f"  - Error type: ConnectionError")
+            logger.error(f"  - Error details: {e}")
+            logger.error("  - Possible cause: AgentGW service is not running on port 9001")
+            logger.error("=" * 50)
+            return AgentGatewayResponse(
+                success=False,
+                error=f"Cannot connect to AgentGW: {e}"
+            )
+        except requests.exceptions.Timeout as e:
+            logger.error("[FAILED] AgentGW request timeout")
+            logger.error(f"  - Error type: Timeout")
+            logger.error(f"  - Error details: {e}")
+            logger.error("  - Possible cause: AgentGW is slow to respond or network issue")
+            logger.error("=" * 50)
+            return AgentGatewayResponse(
+                success=False,
+                error=f"AgentGW request timeout: {e}"
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error("[FAILED] AgentGW request failed")
+            logger.error(f"  - Error type: RequestException")
+            logger.error(f"  - Error details: {e}")
+            logger.error("=" * 50)
+            return AgentGatewayResponse(
+                success=False,
+                error=f"AgentGW request failed: {e}"
+            )
         except Exception as e:
-            logger.error(f"Error forwarding to AgentGW: {e}")
-            return False
+            logger.error("[FAILED] Unexpected error when forwarding to AgentGW")
+            logger.error(f"  - Error type: {type(e).__name__}")
+            logger.error(f"  - Error details: {e}")
+            logger.error("=" * 50)
+            return AgentGatewayResponse(
+                success=False,
+                error=f"Unexpected error when forwarding to AgentGW: {e}"
+            )
     
     def verify_vcs(
         self,

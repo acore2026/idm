@@ -61,7 +61,7 @@ class VC0Claims(BaseModel):
     agent_name: str = Field(..., description="Agent名称")
     agent_id: str = Field(..., description="Agent DID")
     agent_attribute: str = Field(
-        default="运营商颁发，Agent与主UE的绑定关系，用于对外出示，审计确权",
+        default="6G业务开通",
         description="Agent属性描述"
     )
     master_id: str = Field(..., description="主UE身份标识")
@@ -212,6 +212,16 @@ class AgentDeletionRequest(BaseModel):
         }
 
 
+class AgentGatewayResponse(BaseModel):
+    """Agent GW 响应模型."""
+
+    success: bool = Field(..., description="是否成功收到并解析 Agent GW 响应")
+    status_code: Optional[int] = Field(None, description="Agent GW HTTP 状态码")
+    body: Optional[Dict[str, Any]] = Field(None, description="Agent GW 响应体")
+    raw_text: Optional[str] = Field(None, description="Agent GW 原始响应文本")
+    error: Optional[str] = Field(None, description="转发或解析失败时的错误信息")
+
+
 class AgentDeletionResponse(BaseModel):
     """身份注销响应模型.
     
@@ -220,11 +230,16 @@ class AgentDeletionResponse(BaseModel):
         agent_id: 被注销的Agent DID
         message: 详细信息
         forwarded_to_agent_gw: 是否成功转发给AgentGW
+        agent_gw_response: Agent GW 原始响应
     """
     result: str = Field(..., description="处理结果，'success'表示成功")
     agent_id: str = Field(..., description="被注销的Agent DID")
     message: str = Field(..., description="详细信息")
     forwarded_to_agent_gw: bool = Field(default=False, description="是否成功转发给AgentGW")
+    agent_gw_response: Optional[AgentGatewayResponse] = Field(
+        default=None,
+        description="Agent GW 的响应内容"
+    )
     
     class Config:
         json_schema_extra = {
@@ -232,7 +247,15 @@ class AgentDeletionResponse(BaseModel):
                 "result": "success",
                 "agent_id": "did:acn:agent:987654321",
                 "message": "Agent profile and history deleted successfully",
-                "forwarded_to_agent_gw": True
+                "forwarded_to_agent_gw": True,
+                "agent_gw_response": {
+                    "success": True,
+                    "status_code": 200,
+                    "body": {
+                        "result": "success",
+                        "message": "AgentGW deletion acknowledged"
+                    }
+                }
             }
         }
 

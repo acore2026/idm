@@ -6,6 +6,7 @@
 import json
 import base64
 import unittest
+from unittest.mock import Mock, patch
 from datetime import datetime
 from pathlib import Path
 
@@ -213,7 +214,7 @@ class TestIDMService(unittest.TestCase):
     def test_process_valid_application(self):
         """测试处理有效申请."""
         timestamp = str(int(datetime.now().timestamp()))
-        message = f"test_owner:TestAgent:{timestamp}"
+        message = timestamp
         signature = self._sign_message(message)
         
         request = IdentityApplicationRequest(
@@ -286,8 +287,8 @@ class MockACNAgent:
         """
         timestamp = str(int(datetime.now().timestamp()))
         
-        # 构造签名消息
-        message = f"{owner}:{name}:{timestamp}"
+        # 构造签名消息（仅对时间戳签名，与服务端一致）
+        message = timestamp
         
         # 签名
         signature = self.private_key.sign(
@@ -324,8 +325,8 @@ class MockACNAgent:
         from datetime import datetime
         timestamp = datetime.utcnow().isoformat() + "Z"
         
-        # 构造签名消息
-        message = f"{agent_id}:{reason}:{timestamp}"
+        # 构造签名消息（仅对时间戳签名，与服务端一致）
+        message = timestamp
         
         # 签名
         signature = self.private_key.sign(
@@ -397,17 +398,66 @@ class TestAgentDeletion(unittest.TestCase):
     def test_delete_agent_success(self):
         """测试成功注销Agent."""
         from idm.models import AgentDeletionRequest
-        
+        import importlib
+        from unittest.mock import patch
+
+        idm_service_module = importlib.import_module("idm.idm_service")
+        mock_requests = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "result": "success",
+            "message": "AgentGW deletion acknowledged"
+        }
+        mock_requests.post.return_value = mock_response
+
         # 创建注销请求（使用Profile中存储的UDID格式ID）
         deletion_data = self.agent.create_deletion_request(self.agent_id, "retired")
         deletion_request = AgentDeletionRequest(**deletion_data)
-        
-        # 执行注销
-        response = self.service.delete_agent_identity(deletion_request)
-        
+
+        with patch.object(idm_service_module, "requests", mock_requests):
+            response = self.service.delete_agent_identity(deletion_request)
+
         # 验证结果
         self.assertEqual(response.result, "success")
         self.assertEqual(response.agent_id, self.agent_id)
+        self.assertTrue(response.forwarded_to_agent_gw)
+        self.assertIsNotNone(response.agent_gw_response)
+        self.assertTrue(response.agent_gw_response.success)
+        
+    def test_delete_agent_forwards_gateway_response(self):
+        """测试注销请求会携带 Agent GW 的响应返回."""
+        from idm.models import AgentDeletionRequest
+        import importlib
+        from unittest.mock import patch
+
+        idm_service_module = importlib.import_module("idm.idm_service")
+        mock_requests = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "result": "success",
+            "message": "AgentGW deletion acknowledged"
+        }
+        mock_requests.post.return_value = mock_response
+
+        deletion_data = self.agent.create_deletion_request(self.agent_id, "retired")
+        deletion_request = AgentDeletionRequest(**deletion_data)
+
+        with patch.object(idm_service_module, "requests", mock_requests):
+            response = self.service.delete_agent_identity(deletion_request)
+
+        self.assertEqual(response.result, "success")
+        self.assertEqual(response.agent_id, self.agent_id)
+        self.assertTrue(response.forwarded_to_agent_gw)
+        self.assertIsNotNone(response.agent_gw_response)
+        self.assertTrue(response.agent_gw_response.success)
+        self.assertEqual(response.agent_gw_response.status_code, 200)
+        self.assertEqual(response.agent_gw_response.body, {
+            "result": "success",
+            "message": "AgentGW deletion acknowledged"
+        })
+        self.assertEqual(response.message, "AgentGW deletion acknowledged")
         
     def test_delete_nonexistent_agent(self):
         """测试注销不存在的Agent."""

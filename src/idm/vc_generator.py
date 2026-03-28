@@ -81,6 +81,7 @@ class VCGenerator:
             claims=VC0Claims(
                 agent_name=agent_name,
                 agent_id=agent_id,
+                agent_attribute="6G业务开通",
                 master_id=master_id,
                 self_id=self_id
             ),

@@ -156,7 +156,7 @@ async def get_profile(agent_id: str):
 
 
 @app.post(
-    "/idm/v1/agent-deletions",
+    "/acn-agent/v1/agent-deletions",
     response_model=AgentDeletionResponse,
     summary="注销Agent身份",
     description="接收ACN Agent的身份注销请求，验证签名后删除Profile并通知AgentGW"
@@ -180,7 +180,7 @@ async def delete_agent(request: AgentDeletionRequest) -> AgentDeletionResponse:
     """
     # 记录接收到的消息
     LoggerManager.log_message_received(
-        endpoint="/idm/v1/agent-deletions",
+        endpoint="/acn-agent/v1/agent-deletions",
         method="POST",
         body=request.model_dump()
     )
@@ -191,7 +191,7 @@ async def delete_agent(request: AgentDeletionRequest) -> AgentDeletionResponse:
         
         # 记录发送的响应
         LoggerManager.log_message_sent(
-            endpoint="/idm/v1/agent-deletions",
+            endpoint="/acn-agent/v1/agent-deletions",
             response=response.model_dump()
         )
         

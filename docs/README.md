@@ -218,12 +218,22 @@ python -m uvicorn src.idm.main:app --host 0.0.0.0 --port 9020
 
 **响应**：
 
+本接口会在完成本地删除后，将 Agent GW（9001）的响应内容带回给 ACN Agent。
+
 ```json
 {
     "result": "success",
     "agent_id": "did:acn:agent:987654321",
-    "message": "Agent profile and history deleted successfully",
-    "forwarded_to_agent_gw": true
+    "message": "AgentGW deletion acknowledged",
+    "forwarded_to_agent_gw": true,
+    "agent_gw_response": {
+        "success": true,
+        "status_code": 200,
+        "body": {
+            "result": "success",
+            "message": "AgentGW deletion acknowledged"
+        }
+    }
 }
 ```
 
