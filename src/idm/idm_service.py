@@ -115,11 +115,10 @@ class IDMService:
             details="Signature valid"
         )
         
-        # Step 3: 生成Agent ID
+        # Step 3: 生成Agent ID (UDID格式)
         logger.info("Step 3: Generating Agent ID...")
         agent_did = AgentIDGenerator.generate(
-            public_key=request.public_key,
-            timestamp=request.timestamp
+            owner=request.owner
         )
         
         LoggerManager.log_state_change(
@@ -136,7 +135,7 @@ class IDMService:
         
         vc0 = VCGenerator.generate_vc0(
             agent_name=request.name,
-            agent_id=agent_did,  # 统一使用did:acn格式
+            agent_id=agent_did,  # 使用UDID格式
             master_id=master_id,
             self_id=self_id,
             valid_years=config.VC_VALIDITY_YEARS
@@ -152,7 +151,7 @@ class IDMService:
         # Step 5: 创建Agent Profile
         logger.info("Step 5: Creating Agent Profile...")
         profile = ProfileManager.create_profile(
-            agent_id=agent_did,  # 统一使用did:acn格式
+            agent_id=agent_did,  # 使用UDID格式
             public_key_pem=request.public_key,
             vc0=vc0
         )

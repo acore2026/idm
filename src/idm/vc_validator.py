@@ -40,7 +40,7 @@ class VCValidator:
     ISSUER_CERT_MAP = {
         "did:huaweiissuer": "Huawei_cert.crt",
         "did:robotfactoryissuer": "Robot_Factory_cert.crt",
-        "did:udid:NewTypeOperator": "CMCC_cert.crt",  # CMCC证书
+        "did:udid:idm": "CMCC_cert.crt",  # IDM证书
     }
     
     @classmethod

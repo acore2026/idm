@@ -35,7 +35,7 @@ class Config:
     # IDM DID标识（固定值）
     IDM_DID: str = os.getenv(
         "IDM_DID", 
-        "did:acn:idm.local@idm.acn.io"
+        "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org"
     )
     
     # IDM密钥对路径
@@ -71,12 +71,30 @@ class Config:
     def get_profile_path(cls, agent_id: str) -> Path:
         """获取Agent Profile文件路径.
         
+        使用uerid（电话号码+随机数）作为文件名。
+        从UDID格式 did:udid:type2.rid<rid>.achid<achid>.uerid<uerid>@... 中提取uerid。
+        
         Args:
-            agent_id: Agent的DID标识
+            agent_id: Agent的DID标识 (UDID格式)
             
         Returns:
             Profile文件路径
         """
+        # 从UDID格式中提取uerid
+        # 格式: did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org
+        try:
+            # 找到uerid部分
+            if "uerid" in agent_id:
+                # 提取uerid到@之间的部分
+                uerid_start = agent_id.find("uerid") + 5  # "uerid"长度是5
+                uerid_end = agent_id.find("@", uerid_start)
+                if uerid_end > uerid_start:
+                    uerid = agent_id[uerid_start:uerid_end]
+                    return cls.PROFILES_DIR / f"{uerid}.json"
+        except Exception:
+            pass
+        
+        # 如果无法提取uerid，使用安全的文件名
         safe_id = agent_id.replace(":", "_").replace("/", "_")
         return cls.PROFILES_DIR / f"{safe_id}.json"
 

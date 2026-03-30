@@ -14,7 +14,7 @@
         "VerifiableCredential",
         "BindingSIMCredential"
       ],
-      "issuer": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork",
+      "issuer": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
       "valid_from": "2026-03-28T02:44:42Z",
       "valid_until": "2027-03-28T02:44:42Z",
       "claims": {
@@ -25,7 +25,7 @@
         "self_id": "type0.rid678.schid0..mnc015.mcc234.3gppnetwork.org"
       },
       "proof": {
-        "creator": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+        "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
         "signature_value": "MEUCIQCLMFeeeS2GHjb99g38rjcaL0N3+9oUTpFS7SFugdjfvgIgShAuJAnmRhS3/45PhG0pLKVMV3sV9qku+hPkYp2V3hY="
       }
     },

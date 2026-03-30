@@ -106,9 +106,40 @@ class TestAgentID(unittest.TestCase):
         
     def test_udid_format(self):
         """测试UDID格式."""
-        udid = AgentIDGenerator.generate_udid_format("TestAgent")
+        owner = "13688888888"
+        udid = AgentIDGenerator.generate_udid_format("TestAgent", owner)
         self.assertTrue(udid.startswith("did:udid:"))
-        self.assertIn("NewType.rid678", udid)
+        self.assertIn("type2.rid678.achid0.uerid", udid)
+        self.assertIn(owner, udid)
+        self.assertTrue(udid.endswith("@6gc.mnc015.mcc234.3gppnetwork.org"))
+        
+    def test_udid_format_with_phone_number(self):
+        """测试UDID格式包含电话号码和随机数."""
+        owner = "13688888888"
+        udid1 = AgentIDGenerator.generate_udid_format("TestAgent", owner)
+        udid2 = AgentIDGenerator.generate_udid_format("TestAgent", owner)
+        
+        # 验证基本格式
+        self.assertTrue(udid1.startswith("did:udid:type2.rid678.achid0.uerid"))
+        self.assertTrue(udid2.startswith("did:udid:type2.rid678.achid0.uerid"))
+        
+        # 验证包含电话号码前缀
+        self.assertIn(owner, udid1)
+        self.assertIn(owner, udid2)
+        
+        # 验证两个ID不同（因为随机数不同）
+        self.assertNotEqual(udid1, udid2)
+        
+        # 验证格式正确性: did:udid:type2.rid678.achid0.uerid<电话号码+5位随机数>@6gc.mnc015.mcc234.3gppnetwork.org
+        # 电话号码11位 + 随机数5位 = 16位
+        import re
+        pattern = r"^did:udid:type2\.rid678\.achid0\.uerid\d{16}@6gc\.mnc015\.mcc234\.3gppnetwork\.org$"
+        self.assertRegex(udid1, pattern)
+        self.assertRegex(udid2, pattern)
+        
+        # 打印生成的UDID供检查
+        print(f"\nGenerated UDID 1: {udid1}")
+        print(f"Generated UDID 2: {udid2}")
 
 
 class TestVCGenerator(unittest.TestCase):
@@ -392,8 +423,8 @@ class TestAgentDeletion(unittest.TestCase):
         request_data = self.agent.create_application_request()
         request = IdentityApplicationRequest(**request_data)
         response = self.service.process_identity_application(request)
-        # Profile使用vc0中的agent_id（UDID格式）存储
-        self.agent_id = response.vc0.claims.agent_id
+        # Profile使用response中的agent_id（did:acn格式）存储
+        self.agent_id = response.agent_id
         
     def test_delete_agent_success(self):
         """测试成功注销Agent."""
@@ -490,8 +521,8 @@ class TestVCVerification(unittest.TestCase):
         request_data = self.agent.create_application_request()
         request = IdentityApplicationRequest(**request_data)
         response = self.service.process_identity_application(request)
-        # Profile使用vc0中的agent_id（UDID格式）存储
-        self.agent_id = response.vc0.claims.agent_id
+        # Profile使用response中的agent_id（did:acn格式）存储
+        self.agent_id = response.agent_id
         
     def test_verify_valid_vcs(self):
         """测试校验有效的VC."""
@@ -503,12 +534,12 @@ class TestVCVerification(unittest.TestCase):
             context=["3gpp-ts-33.xxx-v20.0.0"],
             id="CMCC/credentials/TEST001",
             type=["VerifiableCredential", "TestCredential"],
-            issuer="did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork",
+            issuer="did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
             valid_from=(datetime.utcnow() - timedelta(days=1)).isoformat() + "Z",
             valid_until=(datetime.utcnow() + timedelta(days=365)).isoformat() + "Z",
             claims={"agent_id": self.agent_id},
             proof={
-                "creator": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+                "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
                 "signature_value": "dummy_signature"
             }
         )
@@ -536,12 +567,12 @@ class TestVCVerification(unittest.TestCase):
             context=["3gpp-ts-33.xxx-v20.0.0"],
             id="CMCC/credentials/EXPIRED001",
             type=["VerifiableCredential", "TestCredential"],
-            issuer="did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork",
+            issuer="did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
             valid_from=(datetime.utcnow() - timedelta(days=365)).isoformat() + "Z",
             valid_until=(datetime.utcnow() - timedelta(days=1)).isoformat() + "Z",
             claims={"agent_id": self.agent_id},
             proof={
-                "creator": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+                "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
                 "signature_value": "dummy_signature"
             }
         )
@@ -576,8 +607,8 @@ def run_deletion_test():
     from idm.models import IdentityApplicationRequest
     request = IdentityApplicationRequest(**request_data)
     response = service.process_identity_application(request)
-    # Profile使用vc0中的agent_id（UDID格式）存储
-    agent_id = response.vc0.claims.agent_id
+    # Profile使用response中的agent_id（did:acn格式）存储
+    agent_id = response.agent_id
     print(f"Agent created: {agent_id}")
     
     # 然后注销身份
@@ -616,8 +647,8 @@ def run_vc_verification_test():
     
     request = IdentityApplicationRequest(**request_data)
     response = service.process_identity_application(request)
-    # Profile使用vc0中的agent_id（UDID格式）存储
-    agent_id = response.vc0.claims.agent_id
+    # Profile使用response中的agent_id（did:acn格式）存储
+    agent_id = response.agent_id
     print(f"Agent created: {agent_id}")
     
     # 创建VC校验请求
@@ -626,12 +657,12 @@ def run_vc_verification_test():
         context=["3gpp-ts-33.xxx-v20.0.0"],
         id="CMCC/credentials/TEST001",
         type=["VerifiableCredential", "CapabilityCredential"],
-        issuer="did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork",
+        issuer="did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
         valid_from=(datetime.utcnow() - timedelta(days=1)).isoformat() + "Z",
         valid_until=(datetime.utcnow() + timedelta(days=365)).isoformat() + "Z",
         claims={"agent_id": agent_id, "capability": "surveillance"},
         proof={
-            "creator": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+            "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
             "signature_value": "dummy_signature"
         }
     )

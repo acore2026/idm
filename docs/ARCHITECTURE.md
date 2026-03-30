@@ -253,6 +253,8 @@ idm-acn/
 
 ### 6.1 Agent ID生成算法
 
+#### 6.1.1 did:acn 格式（用于Profile存储）
+
 ```python
 # 算法描述
 1. 接收: public_key (PEM格式), timestamp
@@ -267,6 +269,28 @@ idm-acn/
 - 同一公钥不同时间生成不同ID
 - hash部分控制在10位以内
 - URL安全的Base64编码
+
+#### 6.1.2 did:udid 格式（用于VC0证书）
+
+```python
+# 算法描述
+1. 接收: agent_name, owner (电话号码), rid="678", achid="0"
+2. 生成: random_suffix = random.randint(10000, 99999)  # 5位随机数
+3. 构造: uerid = owner + str(random_suffix)
+4. 返回: f"did:udid:type2.rid{rid}.achid{achid}.uerid{uerid}@6gc.mnc015.mcc234.3gppnetwork.org"
+```
+
+示例：
+```
+did:udid:type2.rid678.achid0.uerid1368888888879708@6gc.mnc015.mcc234.3gppnetwork.org
+```
+
+格式说明：
+- `type2`: 固定类型标识
+- `rid678`: 区域ID（固定值678）
+- `achid0`: Agent信道ID（固定值0）
+- `uerid<电话号码+5位随机数>`: 用户ID，由11位电话号码和5位随机数组成，确保唯一性
+- `@6gc.mnc015.mcc234.3gppnetwork.org`: 域名后缀
 
 ### 6.2 签名验证流程
 

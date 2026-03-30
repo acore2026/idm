@@ -84,9 +84,20 @@ class ProfileManager:
         
         profiles = []
         for file_path in config.PROFILES_DIR.glob("*.json"):
-            # 从文件名还原agent_id
-            agent_id = file_path.stem.replace("_", ":")
-            profiles.append(agent_id)
+            # 从文件内容读取agent_id
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if "agent_id" in data:
+                    profiles.append(data["agent_id"])
+                else:
+                    # 如果没有agent_id字段，从文件名推断（兼容旧格式）
+                    agent_id = file_path.stem.replace("_", ":")
+                    profiles.append(agent_id)
+            except Exception:
+                # 如果读取失败，从文件名推断
+                agent_id = file_path.stem.replace("_", ":")
+                profiles.append(agent_id)
             
         return profiles
         
@@ -114,10 +125,21 @@ class ProfileManager:
             
         # 构造验证密钥信息
         # 将PEM公钥转换为JWK格式（简化版）
+        # 从UDID格式中提取uerid作为controller
+        if "uerid" in agent_id:
+            uerid_start = agent_id.find("uerid") + 5
+            uerid_end = agent_id.find("@", uerid_start)
+            if uerid_end > uerid_start:
+                controller_id = agent_id[uerid_start:uerid_end]
+            else:
+                controller_id = agent_id
+        else:
+            controller_id = agent_id
+            
         verification_key = VerificationKey(
             id=f"{agent_id}#key1",
             type="JsonWebKey",
-            controller=agent_id.replace("did:acn:", ""),
+            controller=controller_id,
             publicKeyJwk=PublicKeyJwk(
                 crv="Ed25519",  # 默认使用Ed25519
                 x="VCpo2LMLhn6iWku8MKvSLg2ZAoC-nlOyPVQaO3FxVeQ",  # 占位符

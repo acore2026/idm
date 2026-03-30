@@ -152,23 +152,23 @@ class IdentityApplicationResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "result": "success",
-                "agent_id": "did:acn:z6Mki...",
+                "agent_id": "did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
                 "vc0": {
                     "context": ["3gpp-ts-33.xxx-v20.0.0"],
                     "id": "CMCC/credentials/3732",
                     "type": ["VerifiableCredential", "BindingSIMCredential"],
-                    "issuer": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork",
+                    "issuer": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
                     "valid_from": "2024-01-01T00:00:00Z",
                     "valid_until": "2025-01-01T00:00:00Z",
                     "claims": {
                         "agent_name": "Alice的个人助理",
-                        "agent_id": "did:udid:NewType.rid678.schid0.userid30001@6gc.mnc015.mcc234.3gppnetwork",
+                        "agent_id": "did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
                         "agent_attribute": "运营商颁发，Agent与主UE的绑定关系，用于对外出示，审计确权",
                         "master_id": "type0.rid678.schid0.userid1userid20001@6gc0001@6gc.mnc015.mcc234.3gppnetwork.org",
                         "self_id": "type0.rid678.schid0..mnc015.mcc234.3gppnetwork.org"
                     },
                     "proof": {
-                        "creator": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+                        "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
                         "signature_value": "uill9900"
                     }
                 }
@@ -296,7 +296,7 @@ class VC(BaseModel):
                 "context": ["3gpp-ts-33.xxx-v20.0.0"],
                 "id": "CMCC/credentials/3733",
                 "type": ["VerifiableCredential", "CapabilityCredential"],
-                "issuer": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork",
+                "issuer": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
                 "valid_from": "2024-01-01T00:00:00Z",
                 "valid_until": "2025-01-01T00:00:00Z",
                 "claims": {
@@ -306,7 +306,7 @@ class VC(BaseModel):
                     "permissions": ["read", "write"]
                 },
                 "proof": {
-                    "creator": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+                    "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
                     "signature_value": "xxxxxxx"
                 }
             }
@@ -336,7 +336,7 @@ class VCVerificationRequest(BaseModel):
                         "context": ["3gpp-ts-33.xxx-v20.0.0"],
                         "id": "CMCC/credentials/3732",
                         "type": ["VerifiableCredential", "BindingSIMCredential"],
-                        "issuer": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork",
+                        "issuer": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
                         "valid_from": "2024-01-01T00:00:00Z",
                         "valid_until": "2025-01-01T00:00:00Z",
                         "claims": {
@@ -344,7 +344,7 @@ class VCVerificationRequest(BaseModel):
                             "agent_id": "did:acn:agent:987654321"
                         },
                         "proof": {
-                            "creator": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+                            "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
                             "signature_value": "xxxxxxx"
                         }
                     }

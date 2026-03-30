@@ -143,18 +143,18 @@ python -m uvicorn src.idm.main:app --host 0.0.0.0 --port 9020
         "context": ["3gpp-ts-33.xxx-v20.0.0"],
         "id": "CMCC/credentials/3732",
         "type": ["VerifiableCredential", "BindingSIMCredential"],
-        "issuer": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork",
+        "issuer": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
         "valid_from": "2024-01-01T00:00:00Z",
         "valid_until": "2025-01-01T00:00:00Z",
         "claims": {
             "agent_name": "AliceAgent",
-            "agent_id": "did:udid:NewType.rid678.schid0.userid30001@6gc.mnc015.mcc234.3gppnetwork",
+            "agent_id": "did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
             "agent_attribute": "运营商颁发，Agent与主UE的绑定关系，用于对外出示，审计确权",
             "master_id": "type0.rid678.schid0.userid1userid20001@6gc0001@6gc.mnc015.mcc234.3gppnetwork.org",
             "self_id": "type0.rid678.schid0..mnc015.mcc234.3gppnetwork.org"
         },
         "proof": {
-            "creator": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+            "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
             "signature_value": "base64_encoded_signature"
         }
     }
@@ -171,7 +171,7 @@ python -m uvicorn src.idm.main:app --host 0.0.0.0 --port 9020
 {
     "status": "healthy",
     "service": "IDM",
-    "did": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork"
+    "did": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org"
 }
 ```
 
@@ -253,7 +253,7 @@ python -m uvicorn src.idm.main:app --host 0.0.0.0 --port 9020
             "context": ["3gpp-ts-33.xxx-v20.0.0"],
             "id": "CMCC/credentials/3732",
             "type": ["VerifiableCredential", "CapabilityCredential"],
-            "issuer": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork",
+            "issuer": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
             "valid_from": "2024-01-01T00:00:00Z",
             "valid_until": "2025-01-01T00:00:00Z",
             "claims": {
@@ -262,7 +262,7 @@ python -m uvicorn src.idm.main:app --host 0.0.0.0 --port 9020
                 "capability": "surveillance"
             },
             "proof": {
-                "creator": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+                "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
                 "signature_value": "base64_encoded_signature"
             }
         }

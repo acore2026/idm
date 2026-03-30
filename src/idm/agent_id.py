@@ -5,6 +5,7 @@
 
 import base64
 import hashlib
+import random
 import time
 from typing import Optional
 
@@ -21,48 +22,26 @@ class AgentIDGenerator:
     """
     
     @classmethod
-    def generate(cls, public_key: str, timestamp: int) -> str:
-        """生成Agent DID.
+    def generate(cls, owner: str) -> str:
+        """生成Agent DID (UDID格式).
         
-        使用公钥加盐（时间戳）后哈希，确保同一公钥在不同时间
-        生成的ID也不同。
+        生成UDID格式的Agent ID: did:udid:type2.rid<rid>.achid<achid>.uerid<电话号码+5位随机数>@6gc.mnc015.mcc234.3gppnetwork.org
         
         Args:
-            public_key: Agent公钥(PEM格式)
-            timestamp: 申请时间戳
+            owner: 用户电话号码
             
         Returns:
-            Agent DID，格式为 did:acn:<hash>
-            hash长度控制在10位以内
+            Agent DID，UDID格式
         """
-        # 构造待哈希字符串: 公钥 + 时间戳盐值
-        salted_key = f"{public_key}:{timestamp}"
-        
-        # SHA256哈希
-        hash_obj = hashlib.sha256(salted_key.encode())
-        hash_bytes = hash_obj.digest()
-        
-        # Base64编码并截取前10位
-        # 使用URL安全的base64编码
-        hash_b64 = base64.urlsafe_b64encode(hash_bytes).decode()
-        short_hash = hash_b64[:config.AGENT_ID_HASH_LENGTH]
-        
-        # 构造DID
-        agent_did = f"{config.AGENT_ID_PREFIX}:{short_hash}"
-        
-        logger.info(f"Generated Agent ID: {agent_did}")
-        logger.info(f"  - Input timestamp: {timestamp}")
-        logger.info(f"  - Hash length: {len(short_hash)}")
-        
-        return agent_did
+        return cls.generate_udid_format(agent_name="", owner=owner)
         
     @classmethod
     def generate_udid_format(
         cls,
         agent_name: str,
+        owner: str,
         rid: str = "678",
-        schid: str = "0",
-        user_id: str = "30001"
+        achid: str = "0"
     ) -> str:
         """生成UDID格式的Agent ID.
         
@@ -70,27 +49,37 @@ class AgentIDGenerator:
         
         Args:
             agent_name: Agent名称
+            owner: 用户电话号码
             rid: 区域ID
-            schid: 子信道ID
-            user_id: 用户ID
+            achid: Agent信道ID
             
         Returns:
-            UDID格式的Agent ID
+            UDID格式的Agent ID，格式为: did:udid:type2.rid<rid>.achid<achid>.uerid<电话号码+五位随机数>@6gc.mnc015.mcc234.3gppnetwork.org
         """
-        # 格式: did:udid:NewType.rid<rid>.schid<schid>.userid<user_id>@6gc.mnc015.mcc234.3gppnetwork
-        udid = f"did:udid:NewType.rid{rid}.schid{schid}.userid{user_id}@6gc.mnc015.mcc234.3gppnetwork"
+        # 生成5位随机数
+        random_suffix = random.randint(10000, 99999)
+        
+        # 构造uerid: 电话号码 + 5位随机数
+        uerid = f"{owner}{random_suffix}"
+        
+        # 格式: did:udid:type2.rid<rid>.achid<achid>.uerid<uerid>@6gc.mnc015.mcc234.3gppnetwork.org
+        udid = f"did:udid:type2.rid{rid}.achid{achid}.uerid{uerid}@6gc.mnc015.mcc234.3gppnetwork.org"
+        
+        logger.info(f"Generated UDID format Agent ID: {udid}")
+        logger.info(f"  - Owner (phone): {owner}")
+        logger.info(f"  - Random suffix: {random_suffix}")
+        
         return udid
 
 
 # 便捷函数
-def generate_agent_id(public_key: str, timestamp: int) -> str:
+def generate_agent_id(owner: str) -> str:
     """生成Agent DID的便捷函数.
     
     Args:
-        public_key: Agent公钥
-        timestamp: 时间戳
+        owner: 用户电话号码
         
     Returns:
-        Agent DID
+        Agent DID (UDID格式)
     """
-    return AgentIDGenerator.generate(public_key, timestamp)
+    return AgentIDGenerator.generate(owner)

@@ -115,7 +115,7 @@ curl http://localhost:9020/idm/v1/health
 {
     "status": "healthy",
     "service": "IDM",
-    "did": "did:udid:NewTypeOperator.rid678@6gc.mnc015.mcc234.3gppnetwork"
+    "did": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org"
 }
 ```
 
