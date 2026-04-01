@@ -36,6 +36,43 @@ from .vc_validator import VCValidator
 logger = get_logger("idm")
 
 
+def report_to_webui(agent_id: str, owner: str) -> None:
+    """上报身份申请日志到WebUI.
+    
+    Args:
+        agent_id: Agent DID
+        owner: Agent所有者
+    """
+    webui_url = "http://localhost:9004/acn/v3/element-log"
+    
+    report_data = {
+        "ElementId": "IDM",
+        "Type": "ApplyProfile",
+        "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Content": {
+            "AgentID": agent_id,
+            "Owner": owner,
+            "NetworkCapability": "6G业务开通"
+        }
+    }
+    
+    logger.info(f"[WebUI Report] 准备上报到 {webui_url}")
+    logger.info(f"[WebUI Report] 上报内容: {json.dumps(report_data, ensure_ascii=False, indent=2)}")
+    
+    try:
+        if requests is not None:
+            response = requests.post(
+                webui_url,
+                json=report_data,
+                timeout=5
+            )
+            logger.info(f"[WebUI Report] 上报完成，状态码: {response.status_code}")
+        else:
+            logger.warning("[WebUI Report] requests模块未安装，跳过实际上报")
+    except Exception as e:
+        logger.warning(f"[WebUI Report] 上报失败（已忽略）: {e}")
+
+
 class IDMService:
     """IDM业务服务.
     
@@ -163,8 +200,12 @@ class IDMService:
             details=f"Profile saved to: {config.get_profile_path(agent_did)}"
         )
         
-        # Step 6: 构造响应
-        logger.info("Step 6: Constructing response...")
+        # Step 6: 上报到WebUI
+        logger.info("Step 6: Reporting to WebUI...")
+        report_to_webui(agent_id=agent_did, owner=request.owner)
+        
+        # Step 7: 构造响应
+        logger.info("Step 7: Constructing response...")
         response = IdentityApplicationResponse(
             result="success",
             agent_id=agent_did,
