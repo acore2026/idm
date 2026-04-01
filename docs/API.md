@@ -39,10 +39,11 @@ Content-Type: application/json
 | timestamp | integer | 是 | 申请时间戳（Unix时间戳） |
 | signature | string | 是 | 签名值（Base64编码） |
 | signature_encoding | string | 是 | 签名编码格式，如"base64" |
-| metadata | object | 是 | 元数据信息 |
-| metadata.region | string | 是 | 地区 |
-| metadata.os | string | 是 | 操作系统 |
-| metadata.version | string | 是 | 版本号 |
+| metadata | object | 否 | 元数据信息（可选） |
+| metadata.region | string | 否 | 地区（可选） |
+| metadata.os | string | 否 | 操作系统（可选） |
+| metadata.version | string | 否 | 版本号（可选） |
+| metadata.* | any | 否 | 支持任意自定义字段 |
 
 **请求示例**
 

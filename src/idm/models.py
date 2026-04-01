@@ -10,9 +10,11 @@ from datetime import datetime
 
 class Metadata(BaseModel):
     """Agent元数据模型."""
-    region: str
-    os: str
-    version: str
+    model_config = {"extra": "allow"}
+    
+    region: Optional[str] = Field(default=None, description="区域")
+    os: Optional[str] = Field(default=None, description="操作系统")
+    version: Optional[str] = Field(default=None, description="版本")
 
 
 class IdentityApplicationRequest(BaseModel):
@@ -35,7 +37,7 @@ class IdentityApplicationRequest(BaseModel):
     timestamp: str = Field(..., description="申请时间戳")
     signature: str = Field(..., description="签名值")
     signature_encoding: str = Field(default="base64", description="签名编码格式")
-    metadata: Metadata = Field(..., description="元数据")
+    metadata: Optional[Metadata] = Field(default=None, description="元数据")
     
     class Config:
         json_schema_extra = {

@@ -157,6 +157,8 @@ curl -X POST "http://localhost:9020/idm/v1/identity-applications" \
 
 签名串为 `owner:name:timestamp`，使用 ECDSA + SHA-256 签名后再进行 Base64 编码。
 
+**注意**：`metadata` 字段为可选，可包含任意自定义属性。
+
 ### 使用Python脚本
 
 ```python

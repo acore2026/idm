@@ -149,13 +149,14 @@ classDiagram
         +int timestamp
         +str signature
         +str signature_encoding
-        +Metadata metadata
+        +Optional~Metadata~ metadata
     }
     
     class Metadata {
-        +str region
-        +str os
-        +str version
+        +Optional~str~ region
+        +Optional~str~ os
+        +Optional~str~ version
+        +Any... extra_fields
     }
     
     class IdentityApplicationResponse {

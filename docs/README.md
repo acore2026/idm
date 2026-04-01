@@ -129,6 +129,10 @@ python -m uvicorn src.idm.main:app --host 0.0.0.0 --port 9020
 }
 ```
 
+**metadata说明**：
+
+`metadata` 字段为可选字段，可以包含任意自定义属性（如 `device_id`、`network` 等）。原有字段 `region`、`os`、`version` 也改为可选。
+
 **签名说明**：
 
 签名串为 `owner:name:timestamp`，使用 Agent 的 ECDSA 私钥对该字符串进行 SHA-256 签名，结果以 Base64 编码后放入 `signature`。
