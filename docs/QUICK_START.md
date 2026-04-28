@@ -87,6 +87,8 @@ mkdir -p profiles logs certs
 mkdir profiles logs certs
 ```
 
+说明：`certs/` 目录默认仅保留 CMCC 相关证书。第三方机构证书需要在服务启动后通过 `POST /idm/v1/cert-upload` 上传。
+
 #### 4. 启动服务
 
 ```bash

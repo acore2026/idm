@@ -7,6 +7,7 @@ IDM（Identity Management）是ACN（Agent Communication Network）系统的身�
 - **Agent ID生成颁发**：为ACN Agent生成唯一的DID身份标识
 - **VC0生成**：颁发绑定Agent与主UE关系的可验证凭证
 - **VC校验**：验证可验证凭证的签名和有效性
+- **第三方证书传输**：支持 WebUI 上传/删除第三方机构证书
 - **Agent Profile存储**：管理Agent配置文件的存储和查询
 
 ## 功能特性
@@ -19,6 +20,7 @@ IDM（Identity Management）是ACN（Agent Communication Network）系统的身�
 - 完整的日志记录
 - 支持Windows和Linux双平台
 - 详细的API文档和测试用例
+- 第三方机构证书动态上传与删除
 
 ## 项目结构
 
@@ -42,7 +44,7 @@ idm-acn/
 ├── docs/                       # 文档目录
 ├── profiles/                   # Agent Profile存储
 ├── logs/                       # 日志目录
-├── certs/                      # 证书目录
+├── certs/                      # 证书目录（默认仅保留 CMCC 相关证书）
 ├── requirements.txt            # Python依赖
 ├── start_idm.sh                # Linux启动脚本
 └── start.bat                   # Windows启动脚本
@@ -103,6 +105,7 @@ python -m uvicorn src.idm.main:app --host 0.0.0.0 --port 9020
 - **API文档**：http://localhost:9020/docs
 - **健康检查**：http://localhost:9020/idm/v1/health
 - **身份申请**：http://localhost:9020/idm/v1/identity-applications
+- **证书上传**：http://localhost:9020/idm/v1/cert-upload
 
 ## API接口
 
@@ -198,7 +201,19 @@ python -m uvicorn src.idm.main:app --host 0.0.0.0 --port 9020
 
 **响应**：Agent Profile详细信息
 
-### 5. 注销Agent身份
+### 5. 上传第三方证书
+
+**端点**：`POST /idm/v1/cert-upload`
+
+**功能**：WebUI 通过 `multipart/form-data` 上传第三方机构证书。IDM 将证书保存到 `certs/` 目录，并记录 `certID` 和证书文件名的映射，用于后续第三方能力认证。
+
+### 6. 删除第三方证书
+
+**端点**：`POST /idm/v1/cert-delete`
+
+**功能**：WebUI 删除已上传的第三方机构证书。IDM 删除对应文件并更新本地证书注册信息。
+
+### 7. 注销Agent身份
 
 **端点**：`POST /idm/v1/agent-deletions`
 
@@ -241,11 +256,11 @@ python -m uvicorn src.idm.main:app --host 0.0.0.0 --port 9020
 }
 ```
 
-### 6. 校验VC证书
+### 8. 校验VC证书
 
 **端点**：`POST /idm/v1/vc-verifications`
 
-**功能**：AgentGW发送能力VC给IDM进行校验，校验内容包括签名验证、颁发者DID存在性、有效期、字段完整性、格式校验。通过后更新Agent Profile并返回校验结果。
+**功能**：AgentGW发送能力VC给IDM进行校验，校验内容包括签名验证、颁发者DID存在性、有效期、字段完整性、格式校验。通过后更新Agent Profile并返回校验结果。若 `huawei` 或 `robotfactory` 对应第三方证书尚未上传，则相关 VC 会直接校验失败。
 
 **请求体**：
 

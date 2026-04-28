@@ -16,8 +16,10 @@ ENV/
 
 # 生成的文件和密钥（不应该提交到git）
 certs/*.pem
+certs/uploaded_cert_registry.json
 profiles/*.json
 logs/*.log
+logs/*.pid
 *.pem
 private_key.pem
 public_key.pem
@@ -26,3 +28,4 @@ public_key.pem
 cert/
 cert_ref.txt
 generate_keys.py
+.codex

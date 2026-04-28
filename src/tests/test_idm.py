@@ -5,13 +5,17 @@
 
 import json
 import base64
+import asyncio
 import unittest
 from unittest.mock import Mock, patch
 from datetime import datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
+from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -22,7 +26,11 @@ from idm.agent_id import AgentIDGenerator
 from idm.vc_generator import VCGenerator
 from idm.profile_manager import ProfileManager
 from idm.idm_service import IDMService
-from idm.models import IdentityApplicationRequest, Metadata
+from idm.models import IdentityApplicationRequest, Metadata, VCVerificationRequest
+from idm.main import upload_certificate as upload_certificate_endpoint
+from idm.main import delete_certificate as delete_certificate_endpoint
+from idm.main import app
+from idm.models import CertificateDeleteRequest
 
 
 class TestCrypto(unittest.TestCase):
@@ -81,28 +89,28 @@ class TestAgentID(unittest.TestCase):
     
     def test_generate_agent_id(self):
         """测试Agent ID生成."""
-        public_key = "test_public_key"
-        timestamp = int(datetime.now().timestamp())
-        
-        agent_id = AgentIDGenerator.generate(public_key, timestamp)
+        owner = "13688888888"
+        with patch("idm.agent_id.random.randint", side_effect=[10000, 10001]):
+            agent_id = AgentIDGenerator.generate(owner)
+            agent_id2 = AgentIDGenerator.generate(owner)
         
         # 验证格式
-        self.assertTrue(agent_id.startswith("did:acn:"))
+        self.assertTrue(agent_id.startswith("did:udid:type2.rid678.achid0.uerid"))
+        self.assertIn(owner, agent_id)
+        self.assertTrue(agent_id.endswith("@6gc.mnc015.mcc234.3gppnetwork.org"))
         
-        # 验证唯一性（不同时间戳）
-        agent_id2 = AgentIDGenerator.generate(public_key, timestamp + 1)
+        # 验证唯一性（不同随机后缀）
         self.assertNotEqual(agent_id, agent_id2)
         
     def test_agent_id_length(self):
-        """测试Agent ID长度."""
-        public_key = "test_public_key"
-        timestamp = int(datetime.now().timestamp())
-        
-        agent_id = AgentIDGenerator.generate(public_key, timestamp)
-        
-        # 提取hash部分（去掉前缀）
-        hash_part = agent_id.replace("did:acn:", "")
-        self.assertLessEqual(len(hash_part), 10)
+        """测试UDID中的uerid长度."""
+        owner = "13688888888"
+        with patch("idm.agent_id.random.randint", return_value=12345):
+            agent_id = AgentIDGenerator.generate(owner)
+
+        uerid = agent_id.split("uerid", 1)[1].split("@", 1)[0]
+        self.assertEqual(uerid, f"{owner}12345")
+        self.assertEqual(len(uerid), 16)
         
     def test_udid_format(self):
         """测试UDID格式."""
@@ -261,7 +269,7 @@ class TestIDMService(unittest.TestCase):
         response = self.service.process_identity_application(request)
         
         self.assertEqual(response.result, "success")
-        self.assertTrue(response.agent_id.startswith("did:acn:"))
+        self.assertTrue(response.agent_id.startswith("did:udid:"))
         self.assertIsNotNone(response.vc0)
         
     def test_process_invalid_signature(self):
@@ -523,25 +531,41 @@ class TestVCVerification(unittest.TestCase):
         response = self.service.process_identity_application(request)
         # Profile使用response中的agent_id（did:acn格式）存储
         self.agent_id = response.agent_id
+
+    def _build_signed_idm_vc(self, vc_id: str, valid_from: str, valid_until: str):
+        from idm.models import VC
+
+        vc_data = {
+            "context": ["3gpp-ts-33.xxx-v20.0.0"],
+            "id": vc_id,
+            "type": ["VerifiableCredential", "TestCredential"],
+            "issuer": config.IDM_DID,
+            "valid_from": valid_from,
+            "valid_until": valid_until,
+            "claims": {
+                "agent_id": self.agent_id,
+                "agent_attribute": "6G业务开通"
+            }
+        }
+        signature = crypto_manager.sign_vc(vc_data)
+        return VC(
+            **vc_data,
+            proof={
+                "creator": crypto_manager.idm_key_id,
+                "signature_value": signature
+            }
+        )
         
     def test_verify_valid_vcs(self):
         """测试校验有效的VC."""
-        from idm.models import VCVerificationRequest, VC
+        from idm.models import VCVerificationRequest
         from datetime import datetime, timedelta
         
         # 创建有效的VC
-        vc = VC(
-            context=["3gpp-ts-33.xxx-v20.0.0"],
-            id="CMCC/credentials/TEST001",
-            type=["VerifiableCredential", "TestCredential"],
-            issuer="did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
+        vc = self._build_signed_idm_vc(
+            vc_id="CMCC/credentials/TEST001",
             valid_from=(datetime.utcnow() - timedelta(days=1)).isoformat() + "Z",
-            valid_until=(datetime.utcnow() + timedelta(days=365)).isoformat() + "Z",
-            claims={"agent_id": self.agent_id},
-            proof={
-                "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
-                "signature_value": "dummy_signature"
-            }
+            valid_until=(datetime.utcnow() + timedelta(days=365)).isoformat() + "Z"
         )
         
         # 创建校验请求
@@ -559,22 +583,14 @@ class TestVCVerification(unittest.TestCase):
         
     def test_verify_expired_vc(self):
         """测试校验已过期的VC."""
-        from idm.models import VCVerificationRequest, VC
+        from idm.models import VCVerificationRequest
         from datetime import datetime, timedelta
         
         # 创建已过期的VC
-        vc = VC(
-            context=["3gpp-ts-33.xxx-v20.0.0"],
-            id="CMCC/credentials/EXPIRED001",
-            type=["VerifiableCredential", "TestCredential"],
-            issuer="did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org",
+        vc = self._build_signed_idm_vc(
+            vc_id="CMCC/credentials/EXPIRED001",
             valid_from=(datetime.utcnow() - timedelta(days=365)).isoformat() + "Z",
-            valid_until=(datetime.utcnow() - timedelta(days=1)).isoformat() + "Z",
-            claims={"agent_id": self.agent_id},
-            proof={
-                "creator": "did:udid:idm@6gc.mnc015.mcc234.3gppnetwork.org#keys-1",
-                "signature_value": "dummy_signature"
-            }
+            valid_until=(datetime.utcnow() - timedelta(days=1)).isoformat() + "Z"
         )
         
         # 创建校验请求
@@ -589,6 +605,290 @@ class TestVCVerification(unittest.TestCase):
         # 验证结果 - 应该无效
         self.assertFalse(response.valid)
         self.assertNotIn("CMCC/credentials/EXPIRED001", response.vc_ids)
+
+    def test_verify_generated_vc0(self):
+        """测试 IDM 生成的 VC0 可以通过验签."""
+        request_data = self.agent.create_application_request(owner="Bob", name="BobAgent")
+        request = IdentityApplicationRequest(**request_data)
+        response = self.service.process_identity_application(request)
+
+        vc0_request = VCVerificationRequest(
+            agent_id=response.agent_id,
+            vc_list=[response.vc0.model_dump()]
+        )
+
+        verification_response = self.service.verify_vcs(vc0_request)
+        self.assertTrue(verification_response.valid)
+        self.assertIn(response.vc0.id, verification_response.vc_ids)
+
+    def test_verify_real_huawei_vc_sample_with_repo_certificate(self):
+        """测试提供的 Huawei VC 样例在当前仓库证书下的真实验签结果."""
+        from idm.models import VCVerificationRequest
+
+        sample_agent_id = "did:udid:type2.rid678.achid0.uerid1380013800028185@6gc.mnc015.mcc234.3gppnetwork.org"
+        sample_profile = ProfileManager.load_profile(self.agent_id)
+        self.assertIsNotNone(sample_profile)
+        sample_profile.agent_id = sample_agent_id
+        ProfileManager.save_profile(sample_profile)
+
+        request = VCVerificationRequest(
+            agent_id=sample_agent_id,
+            vc_list=[
+                {
+                    "context": ["3gpp-ts-33.xxx-v20.0.0"],
+                    "id": "huawei/credentials/3385",
+                    "type": ["VerifiableCredential", "BindingSIMCredential"],
+                    "issuer": "did:huaweiissuer@6gc.mnc015.mcc234.3gppnetwork",
+                    "valid_from": "2026-04-23T07:07:25.072836+00:00",
+                    "valid_until": "2027-04-24T07:07:25.072836+00:00",
+                    "claims": {
+                        "agent_name": "AliceAgent",
+                        "agent_id": "did:udid:type2.rid678.achid0.uerid1380013800028185@6gc.mnc015.mcc234.3gppnetwork.org",
+                        "agent_attribute": "可疑人员识别",
+                        "authorization_mode": "Mode2",
+                    },
+                    "proof": {
+                        "creator": "did:huaweiissuer@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+                        "signature_value": "MEYCIQCiXVzN0ocUZT1XHRrTO3vTjvis8/pt+FK0RtXted1c+wIhAMjkBjEpkkg1y7qkJYMrXn2OudpMGaOnH6EbTab85Jlj",
+                    },
+                }
+            ],
+        )
+
+        response = self.service.verify_vcs(request)
+
+        self.assertTrue(response.valid)
+        self.assertEqual(response.vc_ids, ["huawei/credentials/3385"])
+        self.assertFalse(response.invalid_vcs)
+
+    def test_verify_external_vc_signed_with_ascii_json_rule(self):
+        """测试外部机构按 sort_keys+compact+ASCII 规则签名的 VC 可以通过验签."""
+        from idm.models import VC
+
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        certificate = (
+            x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Huawei")]))
+            .issuer_name(x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Huawei")]))
+            .public_key(private_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.utcnow())
+            .not_valid_after(datetime.utcnow().replace(year=datetime.utcnow().year + 1))
+            .sign(private_key, hashes.SHA256())
+        )
+
+        cert_path = config.CERTS_DIR / "Huawei_cert.crt"
+        original_cert = cert_path.read_bytes() if cert_path.exists() else None
+        cert_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+
+        try:
+            vc_data = {
+                "context": ["3gpp-ts-33.xxx-v20.0.0"],
+                "id": "huawei/credentials/ASCII001",
+                "type": ["VerifiableCredential", "BindingSIMCredential"],
+                "issuer": "did:huaweiissuer@6gc.mnc015.mcc234.3gppnetwork",
+                "valid_from": "2026-04-23T07:07:25.072836+00:00",
+                "valid_until": "2027-04-24T07:07:25.072836+00:00",
+                "claims": {
+                    "agent_name": "AliceAgent",
+                    "agent_id": self.agent_id,
+                    "agent_attribute": "可疑人员识别",
+                    "authorization_mode": "Mode2",
+                },
+            }
+            message = json.dumps(
+                vc_data,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            signature = base64.b64encode(
+                private_key.sign(message, ec.ECDSA(hashes.SHA256()))
+            ).decode()
+
+            vc = VC(
+                **vc_data,
+                proof={
+                    "creator": "did:huaweiissuer@6gc.mnc015.mcc234.3gppnetwork#keys-1",
+                    "signature_value": signature,
+                }
+            )
+
+            response = self.service.verify_vcs(
+                VCVerificationRequest(agent_id=self.agent_id, vc_list=[vc])
+            )
+
+            self.assertTrue(response.valid)
+            self.assertEqual(response.vc_ids, ["huawei/credentials/ASCII001"])
+        finally:
+            if original_cert is None:
+                cert_path.unlink(missing_ok=True)
+            else:
+                cert_path.write_bytes(original_cert)
+
+
+class TestCertificateUploadAndVerification(unittest.TestCase):
+    """第三方证书上传、删除和 VC 校验联调测试."""
+
+    def setUp(self):
+        self.temp_dir = TemporaryDirectory()
+        self.temp_root = Path(self.temp_dir.name)
+
+        config_cls = type(config)
+        self.original_profiles_dir = config_cls.PROFILES_DIR
+        self.original_logs_dir = config_cls.LOGS_DIR
+        self.original_certs_dir = config_cls.CERTS_DIR
+        self.original_registry_path = config_cls.CERT_REGISTRY_PATH
+
+        config_cls.PROFILES_DIR = self.temp_root / "profiles"
+        config_cls.LOGS_DIR = self.temp_root / "logs"
+        config_cls.CERTS_DIR = self.temp_root / "certs"
+        config_cls.CERT_REGISTRY_PATH = config_cls.CERTS_DIR / "uploaded_cert_registry.json"
+        config.ensure_directories()
+
+        self.service = IDMService()
+        self.agent = MockACNAgent()
+        self.agent_id = self._create_agent()
+
+    def tearDown(self):
+        config_cls = type(config)
+        config_cls.PROFILES_DIR = self.original_profiles_dir
+        config_cls.LOGS_DIR = self.original_logs_dir
+        config_cls.CERTS_DIR = self.original_certs_dir
+        config_cls.CERT_REGISTRY_PATH = self.original_registry_path
+        self.temp_dir.cleanup()
+
+    def _create_agent(self) -> str:
+        request_data = self.agent.create_application_request()
+        request = IdentityApplicationRequest(**request_data)
+        response = self.service.process_identity_application(request)
+        return response.agent_id
+
+    def _build_external_cert_and_vc(self, cert_name: str):
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        public_key = private_key.public_key()
+
+        subject = issuer = x509.Name([
+            x509.NameAttribute(NameOID.COMMON_NAME, "Robot Factory Test")
+        ])
+        certificate = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(issuer)
+            .public_key(public_key)
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.utcnow())
+            .not_valid_after(datetime.utcnow().replace(year=datetime.utcnow().year + 1))
+            .sign(private_key, hashes.SHA256())
+        )
+        cert_bytes = certificate.public_bytes(serialization.Encoding.PEM)
+
+        from datetime import timedelta
+
+        vc_payload = {
+            "context": ["3gpp-ts-33.xxx-v20.0.0"],
+            "id": "ThirdParty/credentials/ROBOT001",
+            "type": ["VerifiableCredential", "CapabilityCredential"],
+            "issuer": "did:robotfactoryissuer:test",
+            "valid_from": (datetime.utcnow() - timedelta(days=1)).isoformat() + "Z",
+            "valid_until": (datetime.utcnow() + timedelta(days=365)).isoformat() + "Z",
+            "claims": {
+                "agent_id": self.agent_id,
+                "capability": "robot-control"
+            }
+        }
+        message = json.dumps(vc_payload, sort_keys=True, separators=(",", ":"))
+        signature = private_key.sign(
+            message.encode(),
+            ec.ECDSA(hashes.SHA256())
+        )
+        vc_payload["proof"] = {
+            "creator": "did:robotfactoryissuer:test#keys-1",
+            "signature_value": base64.b64encode(signature).decode()
+        }
+
+        return cert_bytes, cert_name, vc_payload
+
+    def _make_upload_file(self, filename: str, payload: bytes):
+        class FakeUploadFile:
+            def __init__(self, name: str, content: bytes):
+                self.filename = name
+                self._content = content
+
+            async def read(self):
+                return self._content
+
+        return FakeUploadFile(filename, payload)
+
+    def test_upload_delete_and_vc_verification_flow(self):
+        cert_id = "cert-13478187"
+        cert_bytes, cert_name, vc_payload = self._build_external_cert_and_vc(
+            "Robot_Factory_Cert.crt"
+        )
+
+        verify_request = {
+            "agent_id": self.agent_id,
+            "vc_list": [vc_payload]
+        }
+
+        missing_cert_response = self.service.verify_vcs(
+            VCVerificationRequest(**verify_request)
+        )
+        self.assertFalse(missing_cert_response.valid)
+        self.assertIn(
+            "Could not load public key for issuer: did:robotfactoryissuer:test",
+            missing_cert_response.invalid_vcs[0]["errors"]
+        )
+
+        cert_path = self.service.upload_certificate(cert_id, cert_name, cert_bytes)
+        self.assertTrue(cert_path.exists())
+        self.assertTrue((config.CERTS_DIR / cert_name).exists())
+
+        verified_response = self.service.verify_vcs(
+            VCVerificationRequest(**verify_request)
+        )
+        self.assertTrue(verified_response.valid)
+        self.assertIn(vc_payload["id"], verified_response.vc_ids)
+
+        deleted_path = self.service.delete_certificate(cert_id, cert_name)
+        self.assertEqual(deleted_path, config.CERTS_DIR / cert_name)
+        self.assertFalse((config.CERTS_DIR / cert_name).exists())
+
+        deleted_verify_response = self.service.verify_vcs(
+            VCVerificationRequest(**verify_request)
+        )
+        self.assertFalse(deleted_verify_response.valid)
+
+    def test_certificate_endpoints_smoke(self):
+        cert_id = "cert-endpoint-001"
+        cert_bytes, cert_name, _ = self._build_external_cert_and_vc("Huawei_cert.crt")
+
+        upload_response = asyncio.run(
+            upload_certificate_endpoint(
+                file=self._make_upload_file(cert_name, cert_bytes),
+                certID=cert_id,
+                certName=cert_name,
+            )
+        )
+        self.assertEqual(upload_response.status, "ok")
+        self.assertEqual(upload_response.certID, cert_id)
+        self.assertTrue((config.CERTS_DIR / cert_name).exists())
+
+        delete_response = asyncio.run(
+            delete_certificate_endpoint(
+                CertificateDeleteRequest(certID=cert_id, certName=cert_name)
+            )
+        )
+        self.assertEqual(delete_response.status, "ok")
+        self.assertFalse((config.CERTS_DIR / cert_name).exists())
+
+    def test_certificate_routes_registered(self):
+        route_map = {
+            (method, route.path)
+            for route in app.routes
+            for method in (route.methods or set())
+        }
+        self.assertIn(("POST", "/idm/v1/cert-upload"), route_map)
+        self.assertIn(("POST", "/idm/v1/cert-delete"), route_map)
 
 
 def run_deletion_test():

@@ -46,6 +46,7 @@ class Config:
     PROFILES_DIR: Path = BASE_DIR / "profiles"
     LOGS_DIR: Path = BASE_DIR / "logs"
     CERTS_DIR: Path = BASE_DIR / "certs"
+    CERT_REGISTRY_PATH: Path = CERTS_DIR / "uploaded_cert_registry.json"
     
     # VC配置
     VC_CONTEXT: list = ["3gpp-ts-33.xxx-v20.0.0"]

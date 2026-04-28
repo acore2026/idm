@@ -392,3 +392,20 @@ class VCValidationResult(BaseModel):
     vc_id: str = Field(..., description="VC ID")
     valid: bool = Field(..., description="是否有效")
     errors: List[str] = Field(default=[], description="错误信息列表")
+
+
+class CertificateDeleteRequest(BaseModel):
+    """删除第三方证书请求."""
+
+    certID: str = Field(..., description="证书唯一标识")
+    certName: str = Field(..., description="证书文件名")
+
+
+class CertificateOperationResponse(BaseModel):
+    """证书上传/删除响应."""
+
+    status: str = Field(..., description="状态，成功时为 ok")
+    message: str = Field(..., description="结果描述")
+    certID: Optional[str] = Field(default=None, description="证书唯一标识")
+    certName: Optional[str] = Field(default=None, description="证书文件名")
+    certPath: Optional[str] = Field(default=None, description="IDM 存储路径")

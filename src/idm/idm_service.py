@@ -32,6 +32,7 @@ from .agent_id import AgentIDGenerator
 from .vc_generator import VCGenerator
 from .profile_manager import ProfileManager
 from .vc_validator import VCValidator
+from .cert_manager import CertificateManager
 
 logger = get_logger("idm")
 
@@ -82,6 +83,17 @@ class IDMService:
     def __init__(self):
         """初始化IDM服务."""
         self.crypto = crypto_manager
+
+    def upload_certificate(self, cert_id: str, cert_name: str, file_bytes: bytes) -> Path:
+        """上传第三方机构证书."""
+        return CertificateManager.upload_certificate(cert_id, cert_name, file_bytes)
+
+    def delete_certificate(self, cert_id: str, cert_name: str) -> Path:
+        """删除第三方机构证书."""
+        cert_path = CertificateManager.delete_certificate(cert_id, cert_name)
+        if cert_path is None:
+            raise ValueError(f"Certificate not found for certID: {cert_id}")
+        return cert_path
         
     def process_identity_application(
         self, 
