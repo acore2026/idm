@@ -5,7 +5,6 @@
 
 import logging
 import sys
-from pathlib import Path
 from datetime import datetime
 from typing import Optional
 

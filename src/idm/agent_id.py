@@ -3,13 +3,8 @@
 提供唯一的Agent DID生成服务。
 """
 
-import base64
-import hashlib
 import random
-import time
-from typing import Optional
 
-from .config import config
 from .logger import get_logger
 
 logger = get_logger(__name__)

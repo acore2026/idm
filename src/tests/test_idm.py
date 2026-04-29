@@ -441,20 +441,20 @@ class TestAgentDeletion(unittest.TestCase):
         from unittest.mock import patch
 
         idm_service_module = importlib.import_module("idm.idm_service")
-        mock_requests = Mock()
+        mock_httpx = Mock()
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "result": "success",
             "message": "AgentGW deletion acknowledged"
         }
-        mock_requests.post.return_value = mock_response
+        mock_httpx.post.return_value = mock_response
 
         # 创建注销请求（使用Profile中存储的UDID格式ID）
         deletion_data = self.agent.create_deletion_request(self.agent_id, "retired")
         deletion_request = AgentDeletionRequest(**deletion_data)
 
-        with patch.object(idm_service_module, "requests", mock_requests):
+        with patch.object(idm_service_module, "httpx", mock_httpx):
             response = self.service.delete_agent_identity(deletion_request)
 
         # 验证结果
@@ -471,19 +471,19 @@ class TestAgentDeletion(unittest.TestCase):
         from unittest.mock import patch
 
         idm_service_module = importlib.import_module("idm.idm_service")
-        mock_requests = Mock()
+        mock_httpx = Mock()
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "result": "success",
             "message": "AgentGW deletion acknowledged"
         }
-        mock_requests.post.return_value = mock_response
+        mock_httpx.post.return_value = mock_response
 
         deletion_data = self.agent.create_deletion_request(self.agent_id, "retired")
         deletion_request = AgentDeletionRequest(**deletion_data)
 
-        with patch.object(idm_service_module, "requests", mock_requests):
+        with patch.object(idm_service_module, "httpx", mock_httpx):
             response = self.service.delete_agent_identity(deletion_request)
 
         self.assertEqual(response.result, "success")

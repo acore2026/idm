@@ -13,9 +13,11 @@ graph TB
         WEB_UI[WebUI]
     end
     
-    AGENT -->|HTTP POST| IDM
-    AGENT_GW -.->|Future| IDM
-    WEB_UI -.->|Future| IDM
+    AGENT -->|HTTP POST JSON| IDM
+    AGENT_GW -->|HTTP POST JSON| IDM
+    WEB_UI -->|HTTP POST JSON / multipart| IDM
+    IDM -->|HTTP POST JSON| AGENT_GW
+    IDM -->|HTTP POST JSON| WEB_UI
     
     IDM -->|Store| PROFILES[(Agent Profiles)]
     IDM -->|Log| LOGS[(Logs)]
@@ -48,7 +50,21 @@ graph LR
 classDiagram
     class IDMService {
         +process_identity_application()
-        +verify_vc()
+        +delete_agent_identity()
+        +verify_vcs()
+        +upload_certificate()
+        +delete_certificate()
+    }
+
+    class VCValidator {
+        +validate_vcs()
+        +validate_vc()
+    }
+
+    class CertificateManager {
+        +upload_certificate()
+        +delete_certificate()
+        +get_certificate_path_for_issuer()
     }
     
     class CryptoManager {
@@ -78,6 +94,8 @@ classDiagram
     IDMService --> AgentIDGenerator
     IDMService --> VCGenerator
     IDMService --> ProfileManager
+    IDMService --> VCValidator
+    IDMService --> CertificateManager
 ```
 
 ## 3. 业务流程

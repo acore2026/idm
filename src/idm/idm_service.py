@@ -4,14 +4,14 @@
 """
 
 import json
-from typing import Optional, List, Tuple
+from typing import List
 from datetime import datetime
 from pathlib import Path
 
 try:
-    import requests
+    import httpx
 except ImportError:  # pragma: no cover - optional in minimal test envs
-    requests = None
+    httpx = None
 
 from .config import config
 from .logger import get_logger, LoggerManager
@@ -24,8 +24,6 @@ from .models import (
     VCVerificationRequest,
     VCVerificationResponse,
     VC,
-    VCValidationResult,
-    ErrorResponse
 )
 from .crypto import crypto_manager
 from .agent_id import AgentIDGenerator
@@ -61,15 +59,15 @@ def report_to_webui(agent_id: str, owner: str) -> None:
     logger.info(f"[WebUI Report] 上报内容: {json.dumps(report_data, ensure_ascii=False, indent=2)}")
     
     try:
-        if requests is not None:
-            response = requests.post(
+        if httpx is not None:
+            response = httpx.post(
                 webui_url,
                 json=report_data,
                 timeout=5
             )
             logger.info(f"[WebUI Report] 上报完成，状态码: {response.status_code}")
         else:
-            logger.warning("[WebUI Report] requests模块未安装，跳过实际上报")
+            logger.warning("[WebUI Report] httpx模块未安装，跳过实际上报")
     except Exception as e:
         logger.warning(f"[WebUI Report] 上报失败（已忽略）: {e}")
 
@@ -237,40 +235,6 @@ class IDMService:
         
         return response
         
-    def verify_vc(self, vc_data: dict) -> bool:
-        """验证VC证书.
-        
-        Args:
-            vc_data: VC数据字典
-            
-        Returns:
-            验证是否通过
-        """
-        logger.info("Verifying VC...")
-        
-        try:
-            # 构造待验证的内容（排除proof部分）
-            vc_to_verify = {
-                "context": vc_data["context"],
-                "id": vc_data["id"],
-                "type": vc_data["type"],
-                "issuer": vc_data["issuer"],
-                "valid_from": vc_data["valid_from"],
-                "valid_until": vc_data["valid_until"],
-                "claims": vc_data["claims"]
-            }
-            
-            message = json.dumps(vc_to_verify, sort_keys=True, ensure_ascii=False)
-            
-            # TODO: 验证签名
-            # 这里需要实现完整的VC验证逻辑
-            
-            logger.info("VC verification passed")
-            return True
-        except Exception as e:
-            logger.error(f"VC verification failed: {e}")
-            return False
-    
     def delete_agent_identity(
         self,
         request: AgentDeletionRequest
@@ -410,11 +374,11 @@ class IDMService:
             AgentGW响应内容
         """
         try:
-            if requests is None:
-                logger.warning("requests is not installed; skipping AgentGW forwarding")
+            if httpx is None:
+                logger.warning("httpx is not installed; skipping AgentGW forwarding")
                 return AgentGatewayResponse(
                     success=False,
-                    error="requests is not installed; cannot forward to AgentGW"
+                    error="httpx is not installed; cannot forward to AgentGW"
                 )
 
             agent_gw_url = "http://localhost:9001/acn-agent/v1/agent-deletions"
@@ -434,7 +398,7 @@ class IDMService:
             logger.info("-" * 50)
             
             # 发送POST请求给AgentGW
-            response = requests.post(
+            response = httpx.post(
                 agent_gw_url,
                 json=request_body,
                 timeout=5
@@ -477,7 +441,7 @@ class IDMService:
                     error=f"AgentGW returned status code {response.status_code}"
                 )
                 
-        except requests.exceptions.ConnectionError as e:
+        except httpx.ConnectError as e:
             logger.error("[FAILED] Cannot connect to AgentGW")
             logger.error(f"  - Error type: ConnectionError")
             logger.error(f"  - Error details: {e}")
@@ -487,7 +451,7 @@ class IDMService:
                 success=False,
                 error=f"Cannot connect to AgentGW: {e}"
             )
-        except requests.exceptions.Timeout as e:
+        except httpx.TimeoutException as e:
             logger.error("[FAILED] AgentGW request timeout")
             logger.error(f"  - Error type: Timeout")
             logger.error(f"  - Error details: {e}")
@@ -497,7 +461,7 @@ class IDMService:
                 success=False,
                 error=f"AgentGW request timeout: {e}"
             )
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             logger.error("[FAILED] AgentGW request failed")
             logger.error(f"  - Error type: RequestException")
             logger.error(f"  - Error details: {e}")

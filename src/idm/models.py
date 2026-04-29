@@ -178,12 +178,6 @@ class IdentityApplicationResponse(BaseModel):
         }
 
 
-class ErrorResponse(BaseModel):
-    """错误响应模型."""
-    error: str = Field(..., description="错误信息")
-    detail: Optional[str] = Field(None, description="详细错误信息")
-
-
 # ==================== 身份注销模型 ====================
 
 class AgentDeletionRequest(BaseModel):

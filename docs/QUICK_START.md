@@ -164,7 +164,7 @@ curl -X POST "http://localhost:9020/idm/v1/identity-applications" \
 ### 使用Python脚本
 
 ```python
-import requests
+import httpx
 import json
 
 url = "http://localhost:9020/idm/v1/identity-applications"
@@ -184,7 +184,7 @@ payload = {
     }
 }
 
-response = requests.post(url, json=payload)
+response = httpx.post(url, json=payload, timeout=5)
 print(json.dumps(response.json(), indent=2))
 ```
 

@@ -465,14 +465,14 @@ curl http://localhost:9020/idm/v1/profiles/did:acn:abc123
 ### 使用Python测试
 
 ```python
-import requests
+import httpx
 import json
 
 # 基础配置
 BASE_URL = "http://localhost:9020"
 
 # 健康检查
-response = requests.get(f"{BASE_URL}/idm/v1/health")
+response = httpx.get(f"{BASE_URL}/idm/v1/health", timeout=5)
 print(response.json())
 
 # 申请身份（需要先构造签名）
@@ -490,9 +490,10 @@ payload = {
         "version": "1.0.0"
     }
 }
-response = requests.post(
+response = httpx.post(
     f"{BASE_URL}/idm/v1/identity-applications",
-    json=payload
+    json=payload,
+    timeout=5
 )
 print(json.dumps(response.json(), indent=2))
 ```

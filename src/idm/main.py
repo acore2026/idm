@@ -19,8 +19,7 @@ from .models import (
     VCVerificationRequest,
     VCVerificationResponse,
     CertificateDeleteRequest,
-    CertificateOperationResponse,
-    ErrorResponse
+    CertificateOperationResponse
 )
 from .idm_service import idm_service
 
