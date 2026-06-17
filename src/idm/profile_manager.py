@@ -125,12 +125,12 @@ class ProfileManager:
             
         # 构造验证密钥信息
         # 将PEM公钥转换为JWK格式（简化版）
-        # 从UDID格式中提取uerid作为controller
-        if "uerid" in agent_id:
-            uerid_start = agent_id.find("uerid") + 5
-            uerid_end = agent_id.find("@", uerid_start)
-            if uerid_end > uerid_start:
-                controller_id = agent_id[uerid_start:uerid_end]
+        # 从UDID格式中提取userid作为controller
+        if "userid" in agent_id:
+            userid_start = agent_id.find("userid") + len("userid")
+            userid_end = agent_id.find("@", userid_start)
+            if userid_end > userid_start:
+                controller_id = agent_id[userid_start:userid_end]
             else:
                 controller_id = agent_id
         else:

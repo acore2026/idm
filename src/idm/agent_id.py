@@ -20,7 +20,7 @@ class AgentIDGenerator:
     def generate(cls, owner: str) -> str:
         """生成Agent DID (UDID格式).
         
-        生成UDID格式的Agent ID: did:udid:type2.rid<rid>.achid<achid>.uerid<电话号码+5位随机数>@6gc.mnc015.mcc234.3gppnetwork.org
+        生成UDID格式的Agent ID: did:udid:type2.rid<rid>.achid<achid>.userid<电话号码+5位随机数>@6gc.mnc015.mcc234.3gppnetwork.org
         
         Args:
             owner: 用户电话号码
@@ -49,16 +49,16 @@ class AgentIDGenerator:
             achid: Agent信道ID
             
         Returns:
-            UDID格式的Agent ID，格式为: did:udid:type2.rid<rid>.achid<achid>.uerid<电话号码+五位随机数>@6gc.mnc015.mcc234.3gppnetwork.org
+            UDID格式的Agent ID，格式为: did:udid:type2.rid<rid>.achid<achid>.userid<电话号码+五位随机数>@6gc.mnc015.mcc234.3gppnetwork.org
         """
         # 生成5位随机数
         random_suffix = random.randint(10000, 99999)
         
-        # 构造uerid: 电话号码 + 5位随机数
-        uerid = f"{owner}{random_suffix}"
+        # 构造userid: 电话号码 + 5位随机数
+        userid = f"{owner}{random_suffix}"
         
-        # 格式: did:udid:type2.rid<rid>.achid<achid>.uerid<uerid>@6gc.mnc015.mcc234.3gppnetwork.org
-        udid = f"did:udid:type2.rid{rid}.achid{achid}.uerid{uerid}@6gc.mnc015.mcc234.3gppnetwork.org"
+        # 格式: did:udid:type2.rid<rid>.achid<achid>.userid<userid>@6gc.mnc015.mcc234.3gppnetwork.org
+        udid = f"did:udid:type2.rid{rid}.achid{achid}.userid{userid}@6gc.mnc015.mcc234.3gppnetwork.org"
         
         logger.info(f"Generated UDID format Agent ID: {udid}")
         logger.info(f"  - Owner (phone): {owner}")

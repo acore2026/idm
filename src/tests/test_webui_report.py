@@ -94,7 +94,7 @@ def test_integration_with_identity_application():
         mock_post.return_value = mock_response
         
         report_to_webui(
-            agent_id="did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
+            agent_id="did:udid:type2.rid678.achid0.userid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
             owner="Alice"
         )
         

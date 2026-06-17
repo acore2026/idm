@@ -6,6 +6,7 @@
 import base64
 import hashlib
 import json
+import time
 from datetime import datetime
 from typing import List, Tuple, Optional
 
@@ -382,9 +383,16 @@ class VCValidator:
         valid_vc_ids = []
         results = []
         
-        for vc in vcs:
+        for index, vc in enumerate(vcs):
+            vc_started = time.perf_counter()
             result = cls.validate_vc(vc)
+            duration_ms = (time.perf_counter() - vc_started) * 1000
             results.append(result)
+            logger.info(
+                "【VC验证耗时】"
+                f"VC{index} 验证完成耗时: {duration_ms:.3f} ms, "
+                f"agent_id={agent_id}, vc_id={vc.id}, valid={result.valid}"
+            )
             
             if result.valid:
                 valid_vc_ids.append(vc.id)

@@ -4,6 +4,7 @@
 """
 
 import argparse
+import time
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, File, Form, UploadFile
 from fastapi.responses import JSONResponse
@@ -97,6 +98,8 @@ async def apply_identity(request: IdentityApplicationRequest) -> IdentityApplica
     Raises:
         HTTPException: 验证失败或其他错误
     """
+    request_started = time.perf_counter()
+    
     # 记录接收到的消息
     LoggerManager.log_message_received(
         endpoint="/idm/v1/identity-applications",
@@ -113,13 +116,29 @@ async def apply_identity(request: IdentityApplicationRequest) -> IdentityApplica
             endpoint="/idm/v1/identity-applications",
             response=response.model_dump()
         )
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【IDM生成数字身份耗时】"
+            f"收到 /idm/v1/identity-applications 请求到返回身份耗时: {duration_ms:.3f} ms, "
+            f"agent_id={response.agent_id}"
+        )
         
         return response
         
     except ValueError as e:
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【IDM生成数字身份耗时】"
+            f"/idm/v1/identity-applications 请求失败，未返回身份，耗时: {duration_ms:.3f} ms"
+        )
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【IDM生成数字身份耗时】"
+            f"/idm/v1/identity-applications 请求失败，未返回身份，耗时: {duration_ms:.3f} ms"
+        )
         logger.error(f"Processing error: {e}")
         raise HTTPException(status_code=500, detail="Internal processing error")
 
@@ -318,6 +337,8 @@ async def verify_vcs(request: VCVerificationRequest) -> VCVerificationResponse:
     Returns:
         校验结果响应，包含通过的VC ID列表
     """
+    request_started = time.perf_counter()
+
     # 记录接收到的消息
     LoggerManager.log_message_received(
         endpoint="/idm/v1/vc-verifications",
@@ -334,13 +355,32 @@ async def verify_vcs(request: VCVerificationRequest) -> VCVerificationResponse:
             endpoint="/idm/v1/vc-verifications",
             response=response.model_dump()
         )
+
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【VC校验耗时】"
+            f"收到 /idm/v1/vc-verifications 请求到返回校验结果耗时: {duration_ms:.3f} ms, "
+            f"agent_id={request.agent_id}, vc_count={len(request.vc_list)}, valid={response.valid}"
+        )
         
         return response
         
     except ValueError as e:
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【VC校验耗时】"
+            f"/idm/v1/vc-verifications 请求失败，未返回校验结果，耗时: {duration_ms:.3f} ms, "
+            f"agent_id={request.agent_id}, vc_count={len(request.vc_list)}"
+        )
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【VC校验耗时】"
+            f"/idm/v1/vc-verifications 请求失败，未返回校验结果，耗时: {duration_ms:.3f} ms, "
+            f"agent_id={request.agent_id}, vc_count={len(request.vc_list)}"
+        )
         logger.error(f"Processing error: {e}")
         raise HTTPException(status_code=500, detail="Internal processing error")
 

@@ -93,7 +93,7 @@ message = owner + ":" + name + ":" + timestamp
         "valid_until": "2025-01-01T00:00:00Z",
         "claims": {
             "agent_name": "AliceAgent",
-            "agent_id": "did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
+            "agent_id": "did:udid:type2.rid678.achid0.userid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
             "agent_attribute": "运营商颁发，Agent与主UE的绑定关系，用于对外出示，审计确权",
             "master_id": "type0.rid678.schid0.userid1userid20001@6gc0001@6gc.mnc015.mcc234.3gppnetwork.org",
             "self_id": "type0.rid678.schid0..mnc015.mcc234.3gppnetwork.org"
@@ -244,7 +244,7 @@ GET /idm/v1/profiles/{agent_id}
         "valid_until": "2025-01-01T00:00:00Z",
         "claims": {
             "agent_name": "AliceAgent",
-            "agent_id": "did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
+            "agent_id": "did:udid:type2.rid678.achid0.userid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
             "agent_attribute": "运营商颁发，Agent与主UE的绑定关系，用于对外出示，审计确权",
             "master_id": "type0.rid678.schid0.userid1userid20001@6gc0001@6gc.mnc015.mcc234.3gppnetwork.org",
             "self_id": "type0.rid678.schid0..mnc015.mcc234.3gppnetwork.org"

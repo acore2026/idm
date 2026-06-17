@@ -4,6 +4,7 @@
 """
 
 import json
+import time
 from typing import List
 from datetime import datetime
 from pathlib import Path
@@ -115,6 +116,8 @@ class IDMService:
         Raises:
             ValueError: 签名验证失败或其他错误
         """
+        service_started = time.perf_counter()
+        
         logger.info("=" * 50)
         logger.info("Processing Identity Application")
         logger.info("=" * 50)
@@ -232,6 +235,12 @@ class IDMService:
         logger.info("Identity application processed successfully!")
         logger.info(f"  - Agent ID: {agent_did}")
         logger.info(f"  - VC ID: {vc0.id}")
+        service_duration_ms = (time.perf_counter() - service_started) * 1000
+        logger.info(
+            "【IDM数字身份核心处理耗时】"
+            f"process_identity_application 生成并返回身份耗时: {service_duration_ms:.3f} ms, "
+            f"agent_id={agent_did}"
+        )
         
         return response
         
@@ -498,6 +507,8 @@ class IDMService:
         Returns:
             VC校验响应
         """
+        service_started = time.perf_counter()
+
         logger.info("=" * 50)
         logger.info("Processing VC Verification")
         logger.info("=" * 50)
@@ -584,7 +595,14 @@ class IDMService:
         logger.info("VC verification completed!")
         logger.info(f"  - Valid VCs: {len(valid_vc_ids)}")
         logger.info(f"  - Invalid VCs: {len(invalid_vcs)}")
-        
+
+        service_duration_ms = (time.perf_counter() - service_started) * 1000
+        logger.info(
+            "【VC校验核心处理耗时】"
+            f"verify_vcs 完成校验耗时: {service_duration_ms:.3f} ms, "
+            f"agent_id={request.agent_id}, vc_count={len(request.vc_list)}, valid_vcs={len(valid_vc_ids)}"
+        )
+
         return response
     
     def _update_profile_with_vcs(

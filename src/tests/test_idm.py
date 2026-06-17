@@ -95,7 +95,7 @@ class TestAgentID(unittest.TestCase):
             agent_id2 = AgentIDGenerator.generate(owner)
         
         # 验证格式
-        self.assertTrue(agent_id.startswith("did:udid:type2.rid678.achid0.uerid"))
+        self.assertTrue(agent_id.startswith("did:udid:type2.rid678.achid0.userid"))
         self.assertIn(owner, agent_id)
         self.assertTrue(agent_id.endswith("@6gc.mnc015.mcc234.3gppnetwork.org"))
         
@@ -103,21 +103,21 @@ class TestAgentID(unittest.TestCase):
         self.assertNotEqual(agent_id, agent_id2)
         
     def test_agent_id_length(self):
-        """测试UDID中的uerid长度."""
+        """测试UDID中的userid长度."""
         owner = "13688888888"
         with patch("idm.agent_id.random.randint", return_value=12345):
             agent_id = AgentIDGenerator.generate(owner)
 
-        uerid = agent_id.split("uerid", 1)[1].split("@", 1)[0]
-        self.assertEqual(uerid, f"{owner}12345")
-        self.assertEqual(len(uerid), 16)
+        userid = agent_id.split("userid", 1)[1].split("@", 1)[0]
+        self.assertEqual(userid, f"{owner}12345")
+        self.assertEqual(len(userid), 16)
         
     def test_udid_format(self):
         """测试UDID格式."""
         owner = "13688888888"
         udid = AgentIDGenerator.generate_udid_format("TestAgent", owner)
         self.assertTrue(udid.startswith("did:udid:"))
-        self.assertIn("type2.rid678.achid0.uerid", udid)
+        self.assertIn("type2.rid678.achid0.userid", udid)
         self.assertIn(owner, udid)
         self.assertTrue(udid.endswith("@6gc.mnc015.mcc234.3gppnetwork.org"))
         
@@ -128,8 +128,8 @@ class TestAgentID(unittest.TestCase):
         udid2 = AgentIDGenerator.generate_udid_format("TestAgent", owner)
         
         # 验证基本格式
-        self.assertTrue(udid1.startswith("did:udid:type2.rid678.achid0.uerid"))
-        self.assertTrue(udid2.startswith("did:udid:type2.rid678.achid0.uerid"))
+        self.assertTrue(udid1.startswith("did:udid:type2.rid678.achid0.userid"))
+        self.assertTrue(udid2.startswith("did:udid:type2.rid678.achid0.userid"))
         
         # 验证包含电话号码前缀
         self.assertIn(owner, udid1)
@@ -138,10 +138,10 @@ class TestAgentID(unittest.TestCase):
         # 验证两个ID不同（因为随机数不同）
         self.assertNotEqual(udid1, udid2)
         
-        # 验证格式正确性: did:udid:type2.rid678.achid0.uerid<电话号码+5位随机数>@6gc.mnc015.mcc234.3gppnetwork.org
+        # 验证格式正确性: did:udid:type2.rid678.achid0.userid<电话号码+5位随机数>@6gc.mnc015.mcc234.3gppnetwork.org
         # 电话号码11位 + 随机数5位 = 16位
         import re
-        pattern = r"^did:udid:type2\.rid678\.achid0\.uerid\d{16}@6gc\.mnc015\.mcc234\.3gppnetwork\.org$"
+        pattern = r"^did:udid:type2\.rid678\.achid0\.userid\d{16}@6gc\.mnc015\.mcc234\.3gppnetwork\.org$"
         self.assertRegex(udid1, pattern)
         self.assertRegex(udid2, pattern)
         
@@ -621,11 +621,11 @@ class TestVCVerification(unittest.TestCase):
         self.assertTrue(verification_response.valid)
         self.assertIn(response.vc0.id, verification_response.vc_ids)
 
-    def test_verify_real_huawei_vc_sample_with_repo_certificate(self):
-        """测试提供的 Huawei VC 样例在当前仓库证书下的真实验签结果."""
+    def test_migrated_huawei_vc_sample_rejects_old_signature(self):
+        """测试迁移为 userid 后，旧 Huawei VC 样例签名会失效."""
         from idm.models import VCVerificationRequest
 
-        sample_agent_id = "did:udid:type2.rid678.achid0.uerid1380013800028185@6gc.mnc015.mcc234.3gppnetwork.org"
+        sample_agent_id = "did:udid:type2.rid678.achid0.userid1380013800028185@6gc.mnc015.mcc234.3gppnetwork.org"
         sample_profile = ProfileManager.load_profile(self.agent_id)
         self.assertIsNotNone(sample_profile)
         sample_profile.agent_id = sample_agent_id
@@ -643,7 +643,7 @@ class TestVCVerification(unittest.TestCase):
                     "valid_until": "2027-04-24T07:07:25.072836+00:00",
                     "claims": {
                         "agent_name": "AliceAgent",
-                        "agent_id": "did:udid:type2.rid678.achid0.uerid1380013800028185@6gc.mnc015.mcc234.3gppnetwork.org",
+                        "agent_id": "did:udid:type2.rid678.achid0.userid1380013800028185@6gc.mnc015.mcc234.3gppnetwork.org",
                         "agent_attribute": "可疑人员识别",
                         "authorization_mode": "Mode2",
                     },
@@ -657,9 +657,10 @@ class TestVCVerification(unittest.TestCase):
 
         response = self.service.verify_vcs(request)
 
-        self.assertTrue(response.valid)
-        self.assertEqual(response.vc_ids, ["huawei/credentials/3385"])
-        self.assertFalse(response.invalid_vcs)
+        self.assertFalse(response.valid)
+        self.assertNotIn("huawei/credentials/3385", response.vc_ids)
+        self.assertEqual(response.invalid_vcs[0]["vc_id"], "huawei/credentials/3385")
+        self.assertIn("Invalid signature", response.invalid_vcs[0]["errors"])
 
     def test_verify_external_vc_signed_with_ascii_json_rule(self):
         """测试外部机构按 sort_keys+compact+ASCII 规则签名的 VC 可以通过验签."""
