@@ -154,7 +154,7 @@ class IdentityApplicationResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "result": "success",
-                "agent_id": "did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
+                "agent_id": "did:udid:type2.rid678.achid0.userid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
                 "vc0": {
                     "context": ["3gpp-ts-33.xxx-v20.0.0"],
                     "id": "CMCC/credentials/3732",
@@ -164,7 +164,7 @@ class IdentityApplicationResponse(BaseModel):
                     "valid_until": "2025-01-01T00:00:00Z",
                     "claims": {
                         "agent_name": "Alice的个人助理",
-                        "agent_id": "did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
+                        "agent_id": "did:udid:type2.rid678.achid0.userid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
                         "agent_attribute": "运营商颁发，Agent与主UE的绑定关系，用于对外出示，审计确权",
                         "master_id": "type0.rid678.schid0.userid1userid20001@6gc0001@6gc.mnc015.mcc234.3gppnetwork.org",
                         "self_id": "type0.rid678.schid0..mnc015.mcc234.3gppnetwork.org"
@@ -176,12 +176,6 @@ class IdentityApplicationResponse(BaseModel):
                 }
             }
         }
-
-
-class ErrorResponse(BaseModel):
-    """错误响应模型."""
-    error: str = Field(..., description="错误信息")
-    detail: Optional[str] = Field(None, description="详细错误信息")
 
 
 # ==================== 身份注销模型 ====================
@@ -392,3 +386,20 @@ class VCValidationResult(BaseModel):
     vc_id: str = Field(..., description="VC ID")
     valid: bool = Field(..., description="是否有效")
     errors: List[str] = Field(default=[], description="错误信息列表")
+
+
+class CertificateDeleteRequest(BaseModel):
+    """删除第三方证书请求."""
+
+    certID: str = Field(..., description="证书唯一标识")
+    certName: str = Field(..., description="证书文件名")
+
+
+class CertificateOperationResponse(BaseModel):
+    """证书上传/删除响应."""
+
+    status: str = Field(..., description="状态，成功时为 ok")
+    message: str = Field(..., description="结果描述")
+    certID: Optional[str] = Field(default=None, description="证书唯一标识")
+    certName: Optional[str] = Field(default=None, description="证书文件名")
+    certPath: Optional[str] = Field(default=None, description="IDM 存储路径")

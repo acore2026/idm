@@ -4,8 +4,9 @@
 """
 
 import argparse
+import time
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
@@ -18,7 +19,8 @@ from .models import (
     AgentDeletionResponse,
     VCVerificationRequest,
     VCVerificationResponse,
-    ErrorResponse
+    CertificateDeleteRequest,
+    CertificateOperationResponse
 )
 from .idm_service import idm_service
 
@@ -37,6 +39,14 @@ async def lifespan(app: FastAPI):
     logger.info(f"Listening on: {config.IDM_HOST}:{config.IDM_PORT}")
     logger.info(f"Profiles directory: {config.PROFILES_DIR}")
     logger.info(f"Logs directory: {config.LOGS_DIR}")
+    registered_routes = sorted(
+        f"{','.join(sorted(route.methods or []))} {route.path}"
+        for route in app.routes
+        if getattr(route, "path", None)
+    )
+    logger.info("Registered routes:")
+    for route in registered_routes:
+        logger.info(f"  - {route}")
     logger.info("=" * 60)
     yield
     # 关闭时
@@ -88,6 +98,8 @@ async def apply_identity(request: IdentityApplicationRequest) -> IdentityApplica
     Raises:
         HTTPException: 验证失败或其他错误
     """
+    request_started = time.perf_counter()
+    
     # 记录接收到的消息
     LoggerManager.log_message_received(
         endpoint="/idm/v1/identity-applications",
@@ -104,13 +116,29 @@ async def apply_identity(request: IdentityApplicationRequest) -> IdentityApplica
             endpoint="/idm/v1/identity-applications",
             response=response.model_dump()
         )
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【IDM生成数字身份耗时】"
+            f"收到 /idm/v1/identity-applications 请求到返回身份耗时: {duration_ms:.3f} ms, "
+            f"agent_id={response.agent_id}"
+        )
         
         return response
         
     except ValueError as e:
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【IDM生成数字身份耗时】"
+            f"/idm/v1/identity-applications 请求失败，未返回身份，耗时: {duration_ms:.3f} ms"
+        )
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【IDM生成数字身份耗时】"
+            f"/idm/v1/identity-applications 请求失败，未返回身份，耗时: {duration_ms:.3f} ms"
+        )
         logger.error(f"Processing error: {e}")
         raise HTTPException(status_code=500, detail="Internal processing error")
 
@@ -206,6 +234,89 @@ async def delete_agent(request: AgentDeletionRequest) -> AgentDeletionResponse:
 
 
 @app.post(
+    "/idm/v1/cert-upload",
+    response_model=CertificateOperationResponse,
+    summary="上传第三方机构证书",
+    description="WebUI 上传第三方机构证书到 IDM，IDM 将证书写入 certs 目录"
+)
+async def upload_certificate(
+    file: UploadFile = File(...),
+    certID: str = Form(...),
+    certName: str = Form(...),
+) -> CertificateOperationResponse:
+    """处理第三方证书上传请求."""
+    LoggerManager.log_message_received(
+        endpoint="/idm/v1/cert-upload",
+        method="POST",
+        body={"certID": certID, "certName": certName, "uploaded_filename": file.filename},
+    )
+
+    try:
+        file_bytes = await file.read()
+        logger.info(
+            f"Certificate upload request parsed: certID={certID}, certName={certName}, bytes={len(file_bytes)}"
+        )
+        cert_path = idm_service.upload_certificate(certID, certName, file_bytes)
+        response = CertificateOperationResponse(
+            status="ok",
+            message="certificate uploaded",
+            certID=certID,
+            certName=certName,
+            certPath=str(cert_path),
+        )
+        LoggerManager.log_message_sent(
+            endpoint="/idm/v1/cert-upload",
+            response=response.model_dump()
+        )
+        return response
+    except ValueError as e:
+        logger.error(f"Certificate upload validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Certificate upload error: {e}")
+        raise HTTPException(status_code=500, detail="Internal processing error")
+
+
+@app.post(
+    "/idm/v1/cert-delete",
+    response_model=CertificateOperationResponse,
+    summary="删除第三方机构证书",
+    description="WebUI 请求 IDM 删除已上传的第三方机构证书"
+)
+async def delete_certificate(request: CertificateDeleteRequest) -> CertificateOperationResponse:
+    """处理第三方证书删除请求."""
+    LoggerManager.log_message_received(
+        endpoint="/idm/v1/cert-delete",
+        method="POST",
+        body=request.model_dump()
+    )
+
+    try:
+        logger.info(
+            f"Certificate delete request parsed: certID={request.certID}, certName={request.certName}"
+        )
+        cert_path = idm_service.delete_certificate(request.certID, request.certName)
+        response = CertificateOperationResponse(
+            status="ok",
+            message="certificate deleted",
+            certID=request.certID,
+            certName=request.certName,
+            certPath=str(cert_path),
+        )
+        LoggerManager.log_message_sent(
+            endpoint="/idm/v1/cert-delete",
+            response=response.model_dump()
+        )
+        return response
+    except ValueError as e:
+        logger.error(f"Certificate delete validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Certificate delete error: {e}")
+        raise HTTPException(status_code=500, detail="Internal processing error")
+
+
+@app.post(
     "/idm/v1/vc-verifications",
     response_model=VCVerificationResponse,
     summary="校验VC证书",
@@ -226,6 +337,8 @@ async def verify_vcs(request: VCVerificationRequest) -> VCVerificationResponse:
     Returns:
         校验结果响应，包含通过的VC ID列表
     """
+    request_started = time.perf_counter()
+
     # 记录接收到的消息
     LoggerManager.log_message_received(
         endpoint="/idm/v1/vc-verifications",
@@ -242,13 +355,32 @@ async def verify_vcs(request: VCVerificationRequest) -> VCVerificationResponse:
             endpoint="/idm/v1/vc-verifications",
             response=response.model_dump()
         )
+
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【VC校验耗时】"
+            f"收到 /idm/v1/vc-verifications 请求到返回校验结果耗时: {duration_ms:.3f} ms, "
+            f"agent_id={request.agent_id}, vc_count={len(request.vc_list)}, valid={response.valid}"
+        )
         
         return response
         
     except ValueError as e:
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【VC校验耗时】"
+            f"/idm/v1/vc-verifications 请求失败，未返回校验结果，耗时: {duration_ms:.3f} ms, "
+            f"agent_id={request.agent_id}, vc_count={len(request.vc_list)}"
+        )
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        duration_ms = (time.perf_counter() - request_started) * 1000
+        logger.info(
+            "【VC校验耗时】"
+            f"/idm/v1/vc-verifications 请求失败，未返回校验结果，耗时: {duration_ms:.3f} ms, "
+            f"agent_id={request.agent_id}, vc_count={len(request.vc_list)}"
+        )
         logger.error(f"Processing error: {e}")
         raise HTTPException(status_code=500, detail="Internal processing error")
 

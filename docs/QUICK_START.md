@@ -87,6 +87,8 @@ mkdir -p profiles logs certs
 mkdir profiles logs certs
 ```
 
+说明：`certs/` 目录默认仅保留 CMCC 相关证书。第三方机构证书需要在服务启动后通过 `POST /idm/v1/cert-upload` 上传。
+
 #### 4. 启动服务
 
 ```bash
@@ -162,7 +164,7 @@ curl -X POST "http://localhost:9020/idm/v1/identity-applications" \
 ### 使用Python脚本
 
 ```python
-import requests
+import httpx
 import json
 
 url = "http://localhost:9020/idm/v1/identity-applications"
@@ -182,7 +184,7 @@ payload = {
     }
 }
 
-response = requests.post(url, json=payload)
+response = httpx.post(url, json=payload, timeout=5)
 print(json.dumps(response.json(), indent=2))
 ```
 

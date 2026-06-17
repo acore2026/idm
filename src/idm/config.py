@@ -5,7 +5,6 @@
 
 import os
 from pathlib import Path
-from typing import Optional
 
 
 class Config:
@@ -46,6 +45,7 @@ class Config:
     PROFILES_DIR: Path = BASE_DIR / "profiles"
     LOGS_DIR: Path = BASE_DIR / "logs"
     CERTS_DIR: Path = BASE_DIR / "certs"
+    CERT_REGISTRY_PATH: Path = CERTS_DIR / "uploaded_cert_registry.json"
     
     # VC配置
     VC_CONTEXT: list = ["3gpp-ts-33.xxx-v20.0.0"]
@@ -71,8 +71,8 @@ class Config:
     def get_profile_path(cls, agent_id: str) -> Path:
         """获取Agent Profile文件路径.
         
-        使用uerid（电话号码+随机数）作为文件名。
-        从UDID格式 did:udid:type2.rid<rid>.achid<achid>.uerid<uerid>@... 中提取uerid。
+        使用userid（电话号码+随机数）作为文件名。
+        从UDID格式 did:udid:type2.rid<rid>.achid<achid>.userid<userid>@... 中提取userid。
         
         Args:
             agent_id: Agent的DID标识 (UDID格式)
@@ -80,21 +80,21 @@ class Config:
         Returns:
             Profile文件路径
         """
-        # 从UDID格式中提取uerid
-        # 格式: did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org
+        # 从UDID格式中提取userid
+        # 格式: did:udid:type2.rid678.achid0.userid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org
         try:
-            # 找到uerid部分
-            if "uerid" in agent_id:
-                # 提取uerid到@之间的部分
-                uerid_start = agent_id.find("uerid") + 5  # "uerid"长度是5
-                uerid_end = agent_id.find("@", uerid_start)
-                if uerid_end > uerid_start:
-                    uerid = agent_id[uerid_start:uerid_end]
-                    return cls.PROFILES_DIR / f"{uerid}.json"
+            # 找到userid部分
+            if "userid" in agent_id:
+                # 提取userid到@之间的部分
+                userid_start = agent_id.find("userid") + len("userid")
+                userid_end = agent_id.find("@", userid_start)
+                if userid_end > userid_start:
+                    userid = agent_id[userid_start:userid_end]
+                    return cls.PROFILES_DIR / f"{userid}.json"
         except Exception:
             pass
         
-        # 如果无法提取uerid，使用安全的文件名
+        # 如果无法提取userid，使用安全的文件名
         safe_id = agent_id.replace(":", "_").replace("/", "_")
         return cls.PROFILES_DIR / f"{safe_id}.json"
 

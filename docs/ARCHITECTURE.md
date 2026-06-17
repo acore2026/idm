@@ -13,9 +13,11 @@ graph TB
         WEB_UI[WebUI]
     end
     
-    AGENT -->|HTTP POST| IDM
-    AGENT_GW -.->|Future| IDM
-    WEB_UI -.->|Future| IDM
+    AGENT -->|HTTP POST JSON| IDM
+    AGENT_GW -->|HTTP POST JSON| IDM
+    WEB_UI -->|HTTP POST JSON / multipart| IDM
+    IDM -->|HTTP POST JSON| AGENT_GW
+    IDM -->|HTTP POST JSON| WEB_UI
     
     IDM -->|Store| PROFILES[(Agent Profiles)]
     IDM -->|Log| LOGS[(Logs)]
@@ -48,7 +50,21 @@ graph LR
 classDiagram
     class IDMService {
         +process_identity_application()
-        +verify_vc()
+        +delete_agent_identity()
+        +verify_vcs()
+        +upload_certificate()
+        +delete_certificate()
+    }
+
+    class VCValidator {
+        +validate_vcs()
+        +validate_vc()
+    }
+
+    class CertificateManager {
+        +upload_certificate()
+        +delete_certificate()
+        +get_certificate_path_for_issuer()
     }
     
     class CryptoManager {
@@ -78,6 +94,8 @@ classDiagram
     IDMService --> AgentIDGenerator
     IDMService --> VCGenerator
     IDMService --> ProfileManager
+    IDMService --> VCValidator
+    IDMService --> CertificateManager
 ```
 
 ## 3. 业务流程
@@ -277,20 +295,20 @@ idm-acn/
 # 算法描述
 1. 接收: agent_name, owner (电话号码), rid="678", achid="0"
 2. 生成: random_suffix = random.randint(10000, 99999)  # 5位随机数
-3. 构造: uerid = owner + str(random_suffix)
-4. 返回: f"did:udid:type2.rid{rid}.achid{achid}.uerid{uerid}@6gc.mnc015.mcc234.3gppnetwork.org"
+3. 构造: userid = owner + str(random_suffix)
+4. 返回: f"did:udid:type2.rid{rid}.achid{achid}.userid{userid}@6gc.mnc015.mcc234.3gppnetwork.org"
 ```
 
 示例：
 ```
-did:udid:type2.rid678.achid0.uerid1368888888879708@6gc.mnc015.mcc234.3gppnetwork.org
+did:udid:type2.rid678.achid0.userid1368888888879708@6gc.mnc015.mcc234.3gppnetwork.org
 ```
 
 格式说明：
 - `type2`: 固定类型标识
 - `rid678`: 区域ID（固定值678）
 - `achid0`: Agent信道ID（固定值0）
-- `uerid<电话号码+5位随机数>`: 用户ID，由11位电话号码和5位随机数组成，确保唯一性
+- `userid<电话号码+5位随机数>`: 用户ID，由11位电话号码和5位随机数组成，确保唯一性
 - `@6gc.mnc015.mcc234.3gppnetwork.org`: 域名后缀
 
 ### 6.2 签名验证流程

@@ -4,9 +4,7 @@
 """
 
 import random
-import uuid
 from datetime import datetime, timedelta
-from typing import Optional
 
 from .config import config
 from .crypto import crypto_manager

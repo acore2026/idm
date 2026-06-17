@@ -4,14 +4,15 @@
 """
 
 import json
-from typing import Optional, List, Tuple
+import time
+from typing import List
 from datetime import datetime
 from pathlib import Path
 
 try:
-    import requests
+    import httpx
 except ImportError:  # pragma: no cover - optional in minimal test envs
-    requests = None
+    httpx = None
 
 from .config import config
 from .logger import get_logger, LoggerManager
@@ -24,14 +25,13 @@ from .models import (
     VCVerificationRequest,
     VCVerificationResponse,
     VC,
-    VCValidationResult,
-    ErrorResponse
 )
 from .crypto import crypto_manager
 from .agent_id import AgentIDGenerator
 from .vc_generator import VCGenerator
 from .profile_manager import ProfileManager
 from .vc_validator import VCValidator
+from .cert_manager import CertificateManager
 
 logger = get_logger("idm")
 
@@ -60,15 +60,15 @@ def report_to_webui(agent_id: str, owner: str) -> None:
     logger.info(f"[WebUI Report] 上报内容: {json.dumps(report_data, ensure_ascii=False, indent=2)}")
     
     try:
-        if requests is not None:
-            response = requests.post(
+        if httpx is not None:
+            response = httpx.post(
                 webui_url,
                 json=report_data,
                 timeout=5
             )
             logger.info(f"[WebUI Report] 上报完成，状态码: {response.status_code}")
         else:
-            logger.warning("[WebUI Report] requests模块未安装，跳过实际上报")
+            logger.warning("[WebUI Report] httpx模块未安装，跳过实际上报")
     except Exception as e:
         logger.warning(f"[WebUI Report] 上报失败（已忽略）: {e}")
 
@@ -82,6 +82,17 @@ class IDMService:
     def __init__(self):
         """初始化IDM服务."""
         self.crypto = crypto_manager
+
+    def upload_certificate(self, cert_id: str, cert_name: str, file_bytes: bytes) -> Path:
+        """上传第三方机构证书."""
+        return CertificateManager.upload_certificate(cert_id, cert_name, file_bytes)
+
+    def delete_certificate(self, cert_id: str, cert_name: str) -> Path:
+        """删除第三方机构证书."""
+        cert_path = CertificateManager.delete_certificate(cert_id, cert_name)
+        if cert_path is None:
+            raise ValueError(f"Certificate not found for certID: {cert_id}")
+        return cert_path
         
     def process_identity_application(
         self, 
@@ -105,6 +116,8 @@ class IDMService:
         Raises:
             ValueError: 签名验证失败或其他错误
         """
+        service_started = time.perf_counter()
+        
         logger.info("=" * 50)
         logger.info("Processing Identity Application")
         logger.info("=" * 50)
@@ -222,43 +235,15 @@ class IDMService:
         logger.info("Identity application processed successfully!")
         logger.info(f"  - Agent ID: {agent_did}")
         logger.info(f"  - VC ID: {vc0.id}")
+        service_duration_ms = (time.perf_counter() - service_started) * 1000
+        logger.info(
+            "【IDM数字身份核心处理耗时】"
+            f"process_identity_application 生成并返回身份耗时: {service_duration_ms:.3f} ms, "
+            f"agent_id={agent_did}"
+        )
         
         return response
         
-    def verify_vc(self, vc_data: dict) -> bool:
-        """验证VC证书.
-        
-        Args:
-            vc_data: VC数据字典
-            
-        Returns:
-            验证是否通过
-        """
-        logger.info("Verifying VC...")
-        
-        try:
-            # 构造待验证的内容（排除proof部分）
-            vc_to_verify = {
-                "context": vc_data["context"],
-                "id": vc_data["id"],
-                "type": vc_data["type"],
-                "issuer": vc_data["issuer"],
-                "valid_from": vc_data["valid_from"],
-                "valid_until": vc_data["valid_until"],
-                "claims": vc_data["claims"]
-            }
-            
-            message = json.dumps(vc_to_verify, sort_keys=True, ensure_ascii=False)
-            
-            # TODO: 验证签名
-            # 这里需要实现完整的VC验证逻辑
-            
-            logger.info("VC verification passed")
-            return True
-        except Exception as e:
-            logger.error(f"VC verification failed: {e}")
-            return False
-    
     def delete_agent_identity(
         self,
         request: AgentDeletionRequest
@@ -398,11 +383,11 @@ class IDMService:
             AgentGW响应内容
         """
         try:
-            if requests is None:
-                logger.warning("requests is not installed; skipping AgentGW forwarding")
+            if httpx is None:
+                logger.warning("httpx is not installed; skipping AgentGW forwarding")
                 return AgentGatewayResponse(
                     success=False,
-                    error="requests is not installed; cannot forward to AgentGW"
+                    error="httpx is not installed; cannot forward to AgentGW"
                 )
 
             agent_gw_url = "http://localhost:9001/acn-agent/v1/agent-deletions"
@@ -422,7 +407,7 @@ class IDMService:
             logger.info("-" * 50)
             
             # 发送POST请求给AgentGW
-            response = requests.post(
+            response = httpx.post(
                 agent_gw_url,
                 json=request_body,
                 timeout=5
@@ -465,7 +450,7 @@ class IDMService:
                     error=f"AgentGW returned status code {response.status_code}"
                 )
                 
-        except requests.exceptions.ConnectionError as e:
+        except httpx.ConnectError as e:
             logger.error("[FAILED] Cannot connect to AgentGW")
             logger.error(f"  - Error type: ConnectionError")
             logger.error(f"  - Error details: {e}")
@@ -475,7 +460,7 @@ class IDMService:
                 success=False,
                 error=f"Cannot connect to AgentGW: {e}"
             )
-        except requests.exceptions.Timeout as e:
+        except httpx.TimeoutException as e:
             logger.error("[FAILED] AgentGW request timeout")
             logger.error(f"  - Error type: Timeout")
             logger.error(f"  - Error details: {e}")
@@ -485,7 +470,7 @@ class IDMService:
                 success=False,
                 error=f"AgentGW request timeout: {e}"
             )
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             logger.error("[FAILED] AgentGW request failed")
             logger.error(f"  - Error type: RequestException")
             logger.error(f"  - Error details: {e}")
@@ -522,6 +507,8 @@ class IDMService:
         Returns:
             VC校验响应
         """
+        service_started = time.perf_counter()
+
         logger.info("=" * 50)
         logger.info("Processing VC Verification")
         logger.info("=" * 50)
@@ -608,7 +595,14 @@ class IDMService:
         logger.info("VC verification completed!")
         logger.info(f"  - Valid VCs: {len(valid_vc_ids)}")
         logger.info(f"  - Invalid VCs: {len(invalid_vcs)}")
-        
+
+        service_duration_ms = (time.perf_counter() - service_started) * 1000
+        logger.info(
+            "【VC校验核心处理耗时】"
+            f"verify_vcs 完成校验耗时: {service_duration_ms:.3f} ms, "
+            f"agent_id={request.agent_id}, vc_count={len(request.vc_list)}, valid_vcs={len(valid_vc_ids)}"
+        )
+
         return response
     
     def _update_profile_with_vcs(

@@ -8,9 +8,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from unittest.mock import patch, MagicMock
-import requests as real_requests
-from idm.idm_service import report_to_webui, IDMService
-from idm.models import IdentityApplicationRequest
+import httpx as real_httpx
+from idm.idm_service import report_to_webui
 
 
 def test_report_to_webui():
@@ -20,7 +19,7 @@ def test_report_to_webui():
     # 测试1: 验证上报数据格式
     print("测试1: 验证上报数据格式...")
     
-    with patch.object(real_requests, 'post') as mock_post:
+    with patch.object(real_httpx, 'post') as mock_post:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_post.return_value = mock_response
@@ -30,8 +29,8 @@ def test_report_to_webui():
             owner="test_owner"
         )
         
-        # 验证requests.post被调用
-        assert mock_post.called, "requests.post应该被调用"
+        # 验证httpx.post被调用
+        assert mock_post.called, "httpx.post应该被调用"
         
         # 获取调用参数
         call_args = mock_post.call_args
@@ -62,7 +61,7 @@ def test_report_to_webui():
     # 测试2: 验证上报失败时不抛出异常
     print("\n测试2: 验证上报失败时不抛出异常...")
     
-    with patch.object(real_requests, 'post') as mock_post:
+    with patch.object(real_httpx, 'post') as mock_post:
         mock_post.side_effect = Exception("Connection refused")
         
         try:
@@ -89,13 +88,13 @@ def test_integration_with_identity_application():
     print("由于需要签名验证，这里只展示report_to_webui函数的调用\n")
     
     # 直接测试上报函数
-    with patch.object(real_requests, 'post') as mock_post:
+    with patch.object(real_httpx, 'post') as mock_post:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_post.return_value = mock_response
         
         report_to_webui(
-            agent_id="did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
+            agent_id="did:udid:type2.rid678.achid0.userid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
             owner="Alice"
         )
         

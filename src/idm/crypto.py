@@ -6,9 +6,7 @@
 import base64
 import hashlib
 import json
-from typing import Optional, Tuple
-from datetime import datetime, timedelta
-from pathlib import Path
+from typing import Optional
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -165,7 +163,9 @@ class CryptoManager:
         try:
             if not isinstance(self._private_key, EllipticCurvePrivateKey):
                 raise TypeError("Private key is not an ECDSA key")
-                
+            logger.info(
+                f"Signing raw data with IDM private key: length={len(data)}, sha256={hashlib.sha256(data.encode()).hexdigest()}"
+            )
             signature = self._private_key.sign(
                 data.encode(),
                 ec.ECDSA(hashes.SHA256())
@@ -174,6 +174,63 @@ class CryptoManager:
         except Exception as e:
             logger.error(f"Signing failed: {e}")
             raise
+
+    @staticmethod
+    def build_vc_signing_payload(vc_dict: dict) -> dict:
+        """提取参与签名/验签的 VC 载荷（不包含 proof）."""
+        return {
+            "context": vc_dict["context"],
+            "id": vc_dict["id"],
+            "type": vc_dict["type"],
+            "issuer": vc_dict["issuer"],
+            "valid_from": vc_dict["valid_from"],
+            "valid_until": vc_dict["valid_until"],
+            "claims": vc_dict["claims"]
+        }
+
+    @classmethod
+    def build_vc_signing_message(cls, vc_dict: dict, ensure_ascii: bool = False) -> str:
+        """构造 VC 签名/验签消息.
+
+        IDM 自签 VC 默认使用 ensure_ascii=False。
+        第三方机构兼容签名可传 ensure_ascii=True，对应：
+        json.dumps(vc, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        """
+        vc_to_sign = cls.build_vc_signing_payload(vc_dict)
+        message = json.dumps(
+            vc_to_sign,
+            sort_keys=True,
+            ensure_ascii=ensure_ascii,
+            separators=(",", ":")
+        )
+        logger.info(
+            "Built VC signing message: "
+            f"vc_id={vc_dict.get('id')}, issuer={vc_dict.get('issuer')}, "
+            f"ensure_ascii={ensure_ascii}, "
+            f"length={len(message)}, sha256={hashlib.sha256(message.encode()).hexdigest()}"
+        )
+        return message
+
+    @classmethod
+    def build_external_vc_signing_message(cls, vc_dict: dict) -> str:
+        """构造外部机构 VC 的标准签名串.
+
+        规则：
+        - payload 为 VC 中除 proof 外的完整字段
+        - json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        - Python 默认 ensure_ascii=True，因此中文会被转义
+        """
+        return cls.build_vc_signing_message(vc_dict, ensure_ascii=True)
+
+    @staticmethod
+    def summarize_vc_signing_message(message: str) -> dict:
+        """提取验签原文的调试摘要，避免日志过长."""
+        return {
+            "length": len(message),
+            "sha256": hashlib.sha256(message.encode()).hexdigest(),
+            "preview": message[:200],
+            "tail": message[-200:] if len(message) > 200 else message,
+        }
             
     def sign_vc(self, vc_dict: dict) -> str:
         """签名VC证书.
@@ -186,21 +243,12 @@ class CryptoManager:
         Returns:
             Base64编码的签名值
         """
-        # 构造待签名字符串（排除proof部分）
-        vc_to_sign = {
-            "context": vc_dict["context"],
-            "id": vc_dict["id"],
-            "type": vc_dict["type"],
-            "issuer": vc_dict["issuer"],
-            "valid_from": vc_dict["valid_from"],
-            "valid_until": vc_dict["valid_until"],
-            "claims": vc_dict["claims"]
-        }
-        
-        # 使用JSON字符串作为签名内容
-        message = json.dumps(vc_to_sign, sort_keys=True, ensure_ascii=False)
+        # 使用统一签名串，确保签发和校验完全一致
+        message = self.build_vc_signing_message(vc_dict)
         signature = self.sign_data(message)
-        logger.info(f"VC signed: id={vc_dict['id']}")
+        logger.info(
+            f"VC signed: id={vc_dict['id']}, signature_length={len(signature)}, creator={self.idm_key_id}"
+        )
         return signature
 
 

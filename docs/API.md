@@ -6,7 +6,10 @@ IDM服务提供RESTful API接口，用于ACN Agent的身份管理。
 
 **基础URL**: `http://localhost:9020`
 
-**内容类型**: `application/json`
+**内容类型**:
+
+- 常规接口：`application/json`
+- 证书上传接口：`multipart/form-data`
 
 ---
 
@@ -90,7 +93,7 @@ message = owner + ":" + name + ":" + timestamp
         "valid_until": "2025-01-01T00:00:00Z",
         "claims": {
             "agent_name": "AliceAgent",
-            "agent_id": "did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
+            "agent_id": "did:udid:type2.rid678.achid0.userid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
             "agent_attribute": "运营商颁发，Agent与主UE的绑定关系，用于对外出示，审计确权",
             "master_id": "type0.rid678.schid0.userid1userid20001@6gc0001@6gc.mnc015.mcc234.3gppnetwork.org",
             "self_id": "type0.rid678.schid0..mnc015.mcc234.3gppnetwork.org"
@@ -241,7 +244,7 @@ GET /idm/v1/profiles/{agent_id}
         "valid_until": "2025-01-01T00:00:00Z",
         "claims": {
             "agent_name": "AliceAgent",
-            "agent_id": "did:udid:type2.rid678.achid0.uerid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
+            "agent_id": "did:udid:type2.rid678.achid0.userid1368888888800123@6gc.mnc015.mcc234.3gppnetwork.org",
             "agent_attribute": "运营商颁发，Agent与主UE的绑定关系，用于对外出示，审计确权",
             "master_id": "type0.rid678.schid0.userid1userid20001@6gc0001@6gc.mnc015.mcc234.3gppnetwork.org",
             "self_id": "type0.rid678.schid0..mnc015.mcc234.3gppnetwork.org"
@@ -264,6 +267,114 @@ GET /idm/v1/profiles/{agent_id}
     "detail": "Profile not found"
 }
 ```
+
+---
+
+### 5. 上传第三方机构证书
+
+WebUI 上传第三方机构证书到 IDM。IDM 默认仅预置 CMCC 相关证书，`huawei`、`robotfactory` 等第三方证书需先上传到 `certs/` 目录，后续对应 VC 才能校验通过。
+
+**端点**
+
+```
+POST /idm/v1/cert-upload
+```
+
+**请求头**
+
+```http
+Content-Type: multipart/form-data
+```
+
+**表单字段**
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| file | file | 是 | 证书文件内容 |
+| certID | string | 是 | 证书唯一标识 |
+| certName | string | 是 | 证书文件名 |
+
+**请求示例**
+
+```bash
+curl -X POST http://localhost:9020/idm/v1/cert-upload \
+  -F "file=@Robot_Factory_Cert.crt" \
+  -F "certID=cert-13478187" \
+  -F "certName=Robot_Factory_Cert.crt"
+```
+
+**响应**
+
+成功响应（HTTP 200）:
+
+```json
+{
+    "status": "ok",
+    "message": "certificate uploaded",
+    "certID": "cert-13478187",
+    "certName": "Robot_Factory_Cert.crt",
+    "certPath": "/path/to/idm/certs/Robot_Factory_Cert.crt"
+}
+```
+
+---
+
+### 6. 删除第三方机构证书
+
+WebUI 请求 IDM 删除已上传的第三方机构证书。
+
+**端点**
+
+```
+POST /idm/v1/cert-delete
+```
+
+**请求头**
+
+```http
+Content-Type: application/json
+```
+
+**请求体**
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| certID | string | 是 | 证书唯一标识 |
+| certName | string | 是 | 证书文件名 |
+
+**请求示例**
+
+```json
+{
+    "certID": "cert-13478187",
+    "certName": "Robot_Factory_Cert.crt"
+}
+```
+
+**响应**
+
+成功响应（HTTP 200）:
+
+```json
+{
+    "status": "ok",
+    "message": "certificate deleted",
+    "certID": "cert-13478187",
+    "certName": "Robot_Factory_Cert.crt",
+    "certPath": "/path/to/idm/certs/Robot_Factory_Cert.crt"
+}
+```
+
+---
+
+### 7. 校验第三方 VC 证书
+
+IDM 在校验第三方机构 VC 前，会先根据 `issuer DID` 查找对应证书文件：
+
+- `did:huaweiissuer...`：查找 `Huawei_cert.crt`
+- `did:robotfactoryissuer...`：查找 `Robot_Factory_cert.crt` 或 `Robot_Factory_Cert.crt`
+
+若对应第三方证书尚未上传，则该 VC 直接校验失败，不会写入 Agent Profile。
 
 ---
 
@@ -354,14 +465,14 @@ curl http://localhost:9020/idm/v1/profiles/did:acn:abc123
 ### 使用Python测试
 
 ```python
-import requests
+import httpx
 import json
 
 # 基础配置
 BASE_URL = "http://localhost:9020"
 
 # 健康检查
-response = requests.get(f"{BASE_URL}/idm/v1/health")
+response = httpx.get(f"{BASE_URL}/idm/v1/health", timeout=5)
 print(response.json())
 
 # 申请身份（需要先构造签名）
@@ -379,9 +490,10 @@ payload = {
         "version": "1.0.0"
     }
 }
-response = requests.post(
+response = httpx.post(
     f"{BASE_URL}/idm/v1/identity-applications",
-    json=payload
+    json=payload,
+    timeout=5
 )
 print(json.dumps(response.json(), indent=2))
 ```

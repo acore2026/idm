@@ -4,10 +4,11 @@
 """
 
 import base64
+import hashlib
 import json
+import time
 from datetime import datetime
 from typing import List, Tuple, Optional
-from pathlib import Path
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -18,6 +19,7 @@ from .config import config
 from .crypto import crypto_manager
 from .logger import get_logger
 from .models import VC, VCValidationResult
+from .cert_manager import CertificateManager
 
 logger = get_logger(__name__)
 
@@ -36,12 +38,39 @@ class VCValidator:
     REQUIRED_FIELDS = ["context", "id", "type", "issuer", "valid_from", "valid_until", "claims", "proof"]
     REQUIRED_PROOF_FIELDS = ["creator", "signature_value"]
     
-    # 颁发者DID到证书文件的映射
-    ISSUER_CERT_MAP = {
-        "did:huaweiissuer": "Huawei_cert.crt",
-        "did:robotfactoryissuer": "Robot_Factory_cert.crt",
-        "did:udid:idm": "CMCC_cert.crt",  # IDM证书
-    }
+    KNOWN_EXTERNAL_ISSUERS = tuple(CertificateManager.ISSUER_CERT_RULES.keys())
+
+    @staticmethod
+    def _summarize_signature_input(message: str) -> dict:
+        """构造验签原文摘要，便于和签发端对比."""
+        return crypto_manager.summarize_vc_signing_message(message)
+
+    @staticmethod
+    def _public_key_fingerprint(public_key: object) -> str:
+        """计算公钥指纹，便于定位证书/密钥是否配套."""
+        try:
+            public_key_bytes = public_key.public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+            return hashlib.sha256(public_key_bytes).hexdigest()
+        except Exception as exc:
+            return f"unavailable:{exc}"
+
+    @classmethod
+    def _build_signature_candidates(cls, vc_payload: dict, external_issuer: bool) -> List[Tuple[str, str]]:
+        """生成候选验签原文.
+
+        外部机构优先尝试 IDM 规则，再兼容第三方通用规则。
+        """
+        candidates = [
+            ("idm_default_noascii", crypto_manager.build_vc_signing_message(vc_payload, ensure_ascii=False))
+        ]
+        if external_issuer:
+            candidates.append(
+                ("external_ascii_compact", crypto_manager.build_external_vc_signing_message(vc_payload))
+            )
+        return candidates
     
     @classmethod
     def validate_vc(cls, vc: VC, check_issuer_exists: bool = True) -> VCValidationResult:
@@ -181,7 +210,7 @@ class VCValidator:
             return errors
         
         # 检查是否是已知的外部颁发者（在证书映射中）
-        for issuer_prefix in cls.ISSUER_CERT_MAP.keys():
+        for issuer_prefix in cls.KNOWN_EXTERNAL_ISSUERS:
             if vc.issuer.startswith(issuer_prefix):
                 # 外部颁发者，不检查profile，由签名验证保证
                 return errors
@@ -196,7 +225,7 @@ class VCValidator:
     
     @classmethod
     def _load_issuer_public_key(cls, issuer_did: str) -> Optional[object]:
-        """从证书文件加载颁发者的公钥.
+        """根据 issuer DID 从证书文件加载颁发者的公钥.
         
         Args:
             issuer_did: 颁发者DID
@@ -205,28 +234,30 @@ class VCValidator:
             公钥对象或None
         """
         try:
-            # 根据issuer DID查找对应的证书文件
-            cert_filename = None
-            for issuer_prefix, filename in cls.ISSUER_CERT_MAP.items():
-                if issuer_did.startswith(issuer_prefix):
-                    cert_filename = filename
-                    break
-            
-            if not cert_filename:
+            cert_path = CertificateManager.get_certificate_path_for_issuer(issuer_did)
+            if cert_path is None:
                 logger.warning(f"No certificate mapping found for issuer: {issuer_did}")
                 return None
-            
-            cert_path = config.CERTS_DIR / cert_filename
-            if not cert_path.exists():
-                logger.warning(f"Certificate file not found: {cert_path}")
-                return None
-            
+
             # 加载证书
             with open(cert_path, "rb") as f:
-                cert = x509.load_pem_x509_certificate(f.read())
+                cert_bytes = f.read()
+                logger.info(
+                    f"Loading issuer certificate bytes: issuer={issuer_did}, path={cert_path}, bytes={len(cert_bytes)}"
+                )
+                cert = x509.load_pem_x509_certificate(cert_bytes)
+            cert_fingerprint = cert.fingerprint(hashes.SHA256()).hex()
+            logger.info(
+                "Loaded issuer certificate metadata: "
+                f"issuer={issuer_did}, subject={cert.subject.rfc4514_string()}, "
+                f"serial={cert.serial_number}, cert_sha256={cert_fingerprint}"
+            )
             
             public_key = cert.public_key()
-            logger.info(f"Loaded public key for issuer {issuer_did} from {cert_filename}")
+            logger.info(
+                "Loaded public key for issuer "
+                f"{issuer_did} from {cert_path.name}, public_key_sha256={cls._public_key_fingerprint(public_key)}"
+            )
             return public_key
             
         except Exception as e:
@@ -239,34 +270,37 @@ class VCValidator:
         errors = []
         
         try:
-            # CMCC颁发的VC跳过签名验证（通过ID前缀判断）
-            if vc.id.startswith("CMCC/credentials/"):
-                logger.info(f"Skipping signature verification for CMCC VC: {vc.id}")
-                return errors
-            
-            # 构造待验证的数据（排除proof部分）
-            vc_to_verify = {
-                "context": vc.context,
-                "id": vc.id,
-                "type": vc.type,
-                "issuer": vc.issuer,
-                "valid_from": vc.valid_from,
-                "valid_until": vc.valid_until,
-                "claims": vc.claims
-            }
-            
-            # 序列化为JSON字符串（与签名端保持一致）
-            message = json.dumps(vc_to_verify, sort_keys=True, separators=(",", ":"))
+            vc_to_verify = crypto_manager.build_vc_signing_payload(
+                {
+                    "context": vc.context,
+                    "id": vc.id,
+                    "type": vc.type,
+                    "issuer": vc.issuer,
+                    "valid_from": vc.valid_from,
+                    "valid_until": vc.valid_until,
+                    "claims": vc.claims,
+                }
+            )
             
             # 获取签名
             signature_b64 = vc.proof.signature_value
             signature_bytes = base64.b64decode(signature_b64)
+            logger.info(
+                "Decoded VC signature: "
+                f"vc_id={vc.id}, b64_length={len(signature_b64)}, bytes={len(signature_bytes)}, "
+                f"signature_sha256={hashlib.sha256(signature_bytes).hexdigest()}"
+            )
             
             # 获取签名者的公钥
-            if vc.proof.creator.startswith(config.IDM_DID):
-                # 使用IDM公钥验证
+            external_issuer = not vc.proof.creator.startswith(config.IDM_DID)
+            if not external_issuer:
+                # IDM 生成的 VC0/VC 使用 IDM 公钥验签
                 logger.info(f"Using IDM public key for VC: {vc.id}")
                 public_key = crypto_manager._public_key
+                logger.info(
+                    "IDM public key selected for verification: "
+                    f"vc_id={vc.id}, public_key_sha256={cls._public_key_fingerprint(public_key)}"
+                )
             else:
                 # 从证书加载外部颁发者的公钥
                 logger.info(f"Loading public key for external issuer: {vc.issuer}")
@@ -274,23 +308,61 @@ class VCValidator:
                 if public_key is None:
                     errors.append(f"Could not load public key for issuer: {vc.issuer}")
                     return errors
-            
-            # 验证签名
-            try:
-                public_key.verify(
-                    signature_bytes,
-                    message.encode(),
-                    ec.ECDSA(hashes.SHA256())
+                logger.info(
+                    "External issuer public key resolved successfully: "
+                    f"vc_id={vc.id}, issuer={vc.issuer}, public_key_sha256={cls._public_key_fingerprint(public_key)}"
                 )
-                logger.info(f"Signature verified successfully for VC: {vc.id}")
-            except InvalidSignature:
-                logger.error(f"Signature verification failed for VC: {vc.id}")
+
+            candidates = cls._build_signature_candidates(vc_to_verify, external_issuer=external_issuer)
+            logger.info(
+                "Prepared VC verification payload: "
+                f"vc_id={vc.id}, issuer={vc.issuer}, creator={vc.proof.creator}, "
+                f"claims_keys={sorted(vc.claims.keys()) if isinstance(vc.claims, dict) else 'n/a'}, "
+                f"candidate_count={len(candidates)}"
+            )
+
+            matched_strategy = None
+            last_summary = None
+            for strategy_name, message in candidates:
+                message_summary = cls._summarize_signature_input(message)
+                last_summary = message_summary
+                logger.info(
+                    "VC verification signing input summary: "
+                    f"vc_id={vc.id}, strategy={strategy_name}, length={message_summary['length']}, "
+                    f"sha256={message_summary['sha256']}, preview={message_summary['preview']!r}, "
+                    f"tail={message_summary['tail']!r}"
+                )
+                try:
+                    public_key.verify(
+                        signature_bytes,
+                        message.encode("utf-8"),
+                        ec.ECDSA(hashes.SHA256())
+                    )
+                    matched_strategy = strategy_name
+                    break
+                except InvalidSignature:
+                    logger.info(
+                        "Signature candidate did not match: "
+                        f"vc_id={vc.id}, strategy={strategy_name}, sha256={message_summary['sha256']}"
+                    )
+
+            if matched_strategy:
+                logger.info(
+                    f"Signature verified successfully for VC: {vc.id}, strategy={matched_strategy}"
+                )
+            else:
+                logger.error(
+                    "Signature verification failed for VC: "
+                    f"id={vc.id}, issuer={vc.issuer}, creator={vc.proof.creator}, "
+                    f"signing_input_sha256={last_summary['sha256'] if last_summary else 'n/a'}, "
+                    f"public_key_sha256={cls._public_key_fingerprint(public_key)}, "
+                    f"signature_sha256={hashlib.sha256(signature_bytes).hexdigest()}, "
+                    f"tried_strategies={[name for name, _ in candidates]}"
+                )
                 errors.append("Invalid signature")
-            except Exception as e:
-                logger.error(f"Signature verification error for VC {vc.id}: {e}")
-                errors.append(f"Signature verification error: {e}")
             
         except Exception as e:
+            logger.error(f"Unexpected VC signature verification error for VC {vc.id}: {e}")
             errors.append(f"Signature verification error: {e}")
         
         return errors
@@ -311,9 +383,16 @@ class VCValidator:
         valid_vc_ids = []
         results = []
         
-        for vc in vcs:
+        for index, vc in enumerate(vcs):
+            vc_started = time.perf_counter()
             result = cls.validate_vc(vc)
+            duration_ms = (time.perf_counter() - vc_started) * 1000
             results.append(result)
+            logger.info(
+                "【VC验证耗时】"
+                f"VC{index} 验证完成耗时: {duration_ms:.3f} ms, "
+                f"agent_id={agent_id}, vc_id={vc.id}, valid={result.valid}"
+            )
             
             if result.valid:
                 valid_vc_ids.append(vc.id)
